@@ -44,3 +44,35 @@ def detect_circles_gpu(image_chunk, circles_output, min_Radius, max_Radius, dp, 
         i = [0, 0, 0]
 
     return image_chunk, i
+
+
+def hough_circle_radius(image, radius_range, threshold):
+    height, width = image.shape
+    max_radius = max(radius_range)
+    
+    accumulator = np.zeros((height, width, max_radius+1), dtype=np.uint32)
+    
+    edge_pixels = np.argwhere(image > 0)
+    print(edge_pixels)
+    
+    for x, y in edge_pixels:
+        for radius in radius_range:
+            for theta in range(360):
+                a = int(x - radius * np.cos(np.deg2rad(theta)))
+                b = int(y + radius * np.sin(np.deg2rad(theta)))
+                
+                if 0 <= a < width and 0 <= b < height:
+                    accumulator[b, a, radius] += 1
+    detected_circles = np.argwhere(accumulator >= threshold)
+    print(detected_circles)
+
+    for i in detected_circles:
+        center = (i[0], i[1])
+        print(center)
+        cv.circle(image, center, 2, (0,100,100), 3)
+        raidus = i[2]
+        # print(raidus)
+        cv.circle(image, center, raidus, (255,0,255), 2)
+    
+    return image, i
+

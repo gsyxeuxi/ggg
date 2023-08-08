@@ -21,7 +21,7 @@ cam.Open()
 
 #reset the camera
 cam.UserSetSelector = "UserSet2"
-#cam.UserSetSelector = "Default"
+# cam.UserSetSelector = "Default"
 cam.UserSetLoad.Execute()
 cam.AcquisitionFrameRateEnable.SetValue(True)
 cam.AcquisitionFrameRate.SetValue(100)
