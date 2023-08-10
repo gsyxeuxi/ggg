@@ -5,7 +5,7 @@ import vpi
 import time
 import sys
 import matplotlib.pyplot as plt
-from circles_det import circle_hough_transform
+from circles_det import hough_circle_gradient
 from coord_trans import coordinate_transform
 
 tlf = py.TlFactory.GetInstance()
@@ -35,13 +35,14 @@ while cam.IsGrabbing():
             sys.exit("Input file not found")
         except:
             sys.exit("Error with input file")
-        with vpi.Backend.CUDA:
+        with vpi.Backend.CPU:
              output = input.canny(thresh_strong=300, thresh_weak=100, edge_value=255, nonedge_value=0, norm=vpi.Norm.L2)
         # inver_matrix = coordinate_transform(x1, y1, x2, y2, x0, y0)
         # real_pos = np.round(np.dot(inver_matrix, np.array(([x],[y],[1]))))
         # print(real_pos[0][0], real_pos[1][0])
         with output.rlock_cpu() as outData:
-            # circle = circle_hough_transform(outData, (26,32), 10)
+            
+            img = hough_circle_gradient(outData, 26, 30, 6)
             cv.namedWindow('title', cv.WINDOW_NORMAL)
             cv.imshow('title', outData)
         

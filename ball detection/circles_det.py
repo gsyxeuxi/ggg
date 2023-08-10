@@ -46,17 +46,15 @@ def detect_circles_gpu(image_chunk, circles_output, min_Radius, max_Radius, dp, 
     return image_chunk, i
 
 
-def hough_circle_radius(image, radius_range, threshold):
+def hough_circle_radius(image, radius_range_min, radius_range_max, threshold):
     height, width = image.shape
-    max_radius = max(radius_range)
-    
-    accumulator = np.zeros((height, width, max_radius+1), dtype=np.uint32)
+    accumulator = np.zeros((height, width, radius_range_max+1), dtype=np.uint32)
     
     edge_pixels = np.argwhere(image > 0)
     print(edge_pixels)
     
     for x, y in edge_pixels:
-        for radius in radius_range:
+        for radius in range(radius_range_min, radius_range_max+1):
             for theta in range(360):
                 a = int(x - radius * np.cos(np.deg2rad(theta)))
                 b = int(y + radius * np.sin(np.deg2rad(theta)))
@@ -77,8 +75,7 @@ def hough_circle_radius(image, radius_range, threshold):
     return image, i
 
 
-def hough_circle_gradient(image, radius_range, threshold):
-    height, width = image.shape
+def hough_circle_gradient(image, radius_range_min, radius_range_max, threshold):
     
     gradient_x = cv.Sobel(image, cv.CV_64F, 1, 0, ksize=3)
     gradient_y = cv.Sobel(image, cv.CV_64F, 0, 1, ksize=3)
@@ -90,14 +87,10 @@ def hough_circle_gradient(image, radius_range, threshold):
 
     edge_pixels = np.argwhere(image > 0)
     accumulator = np.zeros((540, 540), dtype=np.uint32)
-
-    radius_min = 26
-    radius_max = 30
-
     for y, x in edge_pixels:
         if x >= 100 and x <= 400 and y >= 100 and y <= 400:
             angle = gradient_angle_deg[y, x]
-            for radius in range(radius_min, radius_max+1):
+            for radius in range(radius_range_min, radius_range_max+1):
                 dx = np.cos(np.radians(angle)) * radius
                 dy = np.sin(np.radians(angle)) * radius
                 x1 = int(x - dx)
@@ -108,7 +101,7 @@ def hough_circle_gradient(image, radius_range, threshold):
                 y2 = int(y + dy)
                 if 0 <= x2 < 540 and 0 <= y2 < 540:
                     accumulator[x2, y2] += 1
-    detected_circles = np.argwhere(accumulator >= 8)
+    detected_circles = np.argwhere(accumulator >= threshold)
     print(len(detected_circles))
     for i in detected_circles:
         center = (i[0], i[1])
