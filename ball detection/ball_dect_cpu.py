@@ -1,7 +1,5 @@
 import pypylon.pylon as py
 import numpy as np
-# import cupy as cp
-# import skimage
 import cv2 as cv
 import time
 from circles_det import detect_circles_cpu
@@ -24,7 +22,7 @@ cam.UserSetSelector = "UserSet2"
 # cam.UserSetSelector = "Default"
 cam.UserSetLoad.Execute()
 cam.AcquisitionFrameRateEnable.SetValue(True)
-cam.AcquisitionFrameRate.SetValue(100)
+cam.AcquisitionFrameRate.SetValue(200)
 # print(cam.ExposureTime.Value)
 # print(cam.AcquisitionFrameRate.Value)
 
@@ -38,31 +36,22 @@ while cam.IsGrabbing():
     
     if grabResult.GrabSucceeded():
         img = grabResult.Array
-        # img = cv.medianBlur(img, 7)
         img = cv.GaussianBlur(img,(5,5),0)
         dectect_back = detect_circles_cpu(img, cv.HOUGH_GRADIENT, dp=1, min_dist=50, param1=100, param2=36, min_Radius=26, max_Radius=32)
-        # # detect_circles(img, cv.HOUGH_GRADIENT_ALT, dp=1.5, min_dist=50, param1=300, param2=0.9, min_Radius=26, max_Radius=32)
-        
         x = dectect_back[1][0]
         y = dectect_back[1][1]
 
-        # real_x = x - 268
-        # real_y = 260 - y
-
-        # print(str('position of the ball:'), real_x, str(','), real_y)
-
+        #coordinate transform
         inver_matrix = coordinate_transform(x1, y1, x2, y2, x0, y0)
         real_pos = np.round(np.dot(inver_matrix, np.array(([x],[y],[1]))))
+        real_pos_x = real_pos[0][0] - 1
+        real_pos_y = real_pos[1][0]
         print(real_pos[0][0], real_pos[1][0])
 
         current_time = time.time()
         latency = round(100 * (current_time - previous_time), 2)
         previous_time = current_time
         print(str('latency is:'), latency, str('ms'))
-
-        # with open('latency.csv', 'w', newline='') as csv_file:
-        #     csv_writer = csv.writer(csv_file)
-        #     csv_writer.writerows(str(latency))
         
         cv.namedWindow('title', cv.WINDOW_NORMAL)
         cv.imshow('title', img)
