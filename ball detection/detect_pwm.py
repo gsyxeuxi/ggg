@@ -1,11 +1,52 @@
+import time
+import Jetson.GPIO as GPIO
 import pypylon.pylon as py
 import numpy as np
 import cv2 as cv
-import time
 from circles_det import detect_circles_cpu
 from coord_trans import coordinate_transform
+from multiprocessing import Process
 
-def main():
+
+def pwm():
+    # Pin Setup:
+    # Board pin-numbering scheme
+    GPIO.setmode(GPIO.BOARD)
+    # set pin as an output pin with optional initial state of HIGH
+    GPIO.setup(32, GPIO.OUT, initial=GPIO.HIGH)
+    p1 = GPIO.PWM(32, 1000)
+    GPIO.setup(33, GPIO.OUT, initial=GPIO.HIGH)
+    p2 = GPIO.PWM(33, 1000)
+    val_1 = 10
+    val_2 = 90
+    incr_1 = 10
+    incr_2 = 10
+    p1.start(val_1)
+    p2.start(val_2)
+
+    print("PWM running. Press CTRL+C to exit.")
+    try:
+        while True:
+            time.sleep(0.5)
+            if val_1 >= 100:
+                incr_1 = -incr_1
+            if val_2 >= 100:
+                incr_2 = -incr_2
+            if val_1 <= 0:
+                incr_1 = -incr_1
+            if val_2 <= 0:
+                incr_2= -incr_2
+            val_1 += incr_1
+            val_2 += incr_2
+            p1.ChangeDutyCycle(val_1)
+            p2.ChangeDutyCycle(val_2)
+    finally:
+        p1.stop()
+        p2.stop()
+        GPIO.cleanup()
+
+
+def ball_cv():
     x0 = 268
     y0 = 260
     x1 = 156
@@ -30,7 +71,6 @@ def main():
     cam.StartGrabbing(py.GrabStrategy_LatestImageOnly)
 
     previous_time = time.time()
-
 
     while cam.IsGrabbing():
         grabResult = cam.RetrieveResult(5000, py.TimeoutHandling_ThrowException)
@@ -67,5 +107,13 @@ def main():
     cam.Close()
 
 
-# if __name__ == '__main__':
-#     main()
+def main():
+    pwm_process = Process(target=pwm)
+    cv_process = Process(target=ball_cv)
+
+    cv_process.start()
+    pwm_process.start()
+
+
+if __name__ == '__main__':
+    main()

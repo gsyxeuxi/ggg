@@ -11,8 +11,8 @@ def main():
     p1 = GPIO.PWM(32, 1000)
     GPIO.setup(33, GPIO.OUT, initial=GPIO.HIGH)
     p2 = GPIO.PWM(33, 1000)
-    val_1 = 0
-    val_2 = 100
+    val_1 = 50
+    val_2 = 50
     incr_1 = 10
     incr_2 = 10
     p1.start(val_1)
@@ -22,16 +22,16 @@ def main():
     try:
         while True:
             time.sleep(0.5)
-            if val_1 >= 100:
+            if val_1 >= 90:
                 incr_1 = -incr_1
-            if val_2 >= 100:
+            if val_2 >= 90:
                 incr_2 = -incr_2
-            if val_1 <= 0:
+            if val_1 <= 10:
                 incr_1 = -incr_1
-            if val_2 <= 0:
+            if val_2 <= 10:
                 incr_2= -incr_2
-            val_1 += incr_1
-            val_2 += incr_2
+            # val_1 += incr_1
+            # val_2 += incr_2
             p1.ChangeDutyCycle(val_1)
             p2.ChangeDutyCycle(val_2)
     finally:
