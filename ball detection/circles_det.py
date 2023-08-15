@@ -25,6 +25,8 @@ def detect_circles_cpu(image_chunk, circles_output, min_Radius, max_Radius, dp, 
 
 
 def detect_circles_gpu(image_chunk, circles_output, min_Radius, max_Radius, dp, min_dist, param1, param2):
+    
+    # cv in Jetson doesn't support cuda function, re-install cv is needed
     circles = cv.cuda.HoughCirclesDetector(image_chunk, cv.HOUGH_GRADIENT, dp, min_dist, param1=param1, param2=param2,
                               minRadius=min_Radius, maxRadius=max_Radius)
     if circles is not None:

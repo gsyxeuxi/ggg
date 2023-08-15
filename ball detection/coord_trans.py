@@ -1,7 +1,7 @@
 import numpy as np
 import math
 
-def coordinate_transform(x1, y1, x2, y2, x0, y0):
+def coordinate_transform(x1=156, y1=21, x2=396, y2=24, x0=268, y0=260):
     cos_theta = (x2 - x1) / math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
     # print(cos_theta)
 
