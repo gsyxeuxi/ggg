@@ -45,20 +45,13 @@ def pwm():
         p2.stop()
         GPIO.cleanup()
 
+inver_matrix = coordinate_transform()
 
 def ball_cv():
-    x0 = 268
-    y0 = 260
-    x1 = 156
-    y1 = 21
-    x2 = 369
-    y2 = 24
-
     tlf = py.TlFactory.GetInstance()
     device = tlf.CreateFirstDevice()
     cam = py.InstantCamera(device)
     cam.Open()
-
     #reset the camera
     cam.UserSetSelector = "UserSet2"
     # cam.UserSetSelector = "Default"
@@ -67,7 +60,6 @@ def ball_cv():
     cam.AcquisitionFrameRate.SetValue(100)
     # print(cam.ExposureTime.Value)
     # print(cam.AcquisitionFrameRate.Value)
-
     cam.StartGrabbing(py.GrabStrategy_LatestImageOnly)
 
     previous_time = time.time()
@@ -84,7 +76,6 @@ def ball_cv():
             y = dectect_back[1][1]
 
             #coordinate transform
-            inver_matrix = coordinate_transform(x1, y1, x2, y2, x0, y0)
             real_pos = np.round(np.dot(inver_matrix, np.array(([x],[y],[1]))))
             real_pos_x = real_pos[0][0] - 1
             real_pos_y = real_pos[1][0]
@@ -113,7 +104,11 @@ def main():
 
     cv_process.start()
     pwm_process.start()
+    cv_process.join()
+    pwm_process.join()
+    
 
 
 if __name__ == '__main__':
     main()
+    
