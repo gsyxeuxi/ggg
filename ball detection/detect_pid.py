@@ -5,12 +5,12 @@ import numpy as np
 import cv2 as cv
 from circles_det import detect_circles_cpu
 from coord_trans import coordinate_transform
-from multiprocessing import Process, Value
+from multiprocessing import Process, Value, Array
 
+# transform form pixel to mm
+inver_matrix = coordinate_transform() * 400 / 540
 
-inver_matrix = coordinate_transform()
-
-def pwm(real_pos_x, real_pos_y):
+def pwm(real_pos):
     # Pin Setup:
     # Board pin-numbering scheme
     GPIO.setmode(GPIO.BOARD)
@@ -26,10 +26,17 @@ def pwm(real_pos_x, real_pos_y):
     p1.start(val_1)
     p2.start(val_2)
 
+    # pid parameter
+    kp = 0.001
+    ki = 0.0005
+    kd = 0.0005
+
+
+
     print("PWM running. Press CTRL+C to exit.")
     try:
         while True:
-            print('PWM read', real_pos_x.value, real_pos_y.value)
+            print('PWM read', real_pos[0], real_pos[1])
             time.sleep(0.5)
             if val_1 >= 100:
                 incr_1 = -incr_1
@@ -50,7 +57,7 @@ def pwm(real_pos_x, real_pos_y):
 
 
 
-def ball_cv(real_pos_x, real_pos_y):
+def ball_cv(real_pos):
     tlf = py.TlFactory.GetInstance()
     device = tlf.CreateFirstDevice()
     cam = py.InstantCamera(device)
@@ -69,7 +76,7 @@ def ball_cv(real_pos_x, real_pos_y):
 
     while cam.IsGrabbing():
         grabResult = cam.RetrieveResult(5000, py.TimeoutHandling_ThrowException)
-        print(str('Number of skipped images:'), grabResult.GetNumberOfSkippedImages())
+        # print(str('Number of skipped images:'), grabResult.GetNumberOfSkippedImages())
         
         if grabResult.GrabSucceeded():
             img = grabResult.Array
@@ -79,15 +86,15 @@ def ball_cv(real_pos_x, real_pos_y):
             y = dectect_back[1][1]
 
             #coordinate transform
-            real_pos = np.round(np.dot(inver_matrix, np.array(([x],[y],[1]))))
-            real_pos_x.value = real_pos[0][0] - 1
-            real_pos_y.value = real_pos[1][0]
-            print(real_pos_x, real_pos_y)
+            transed_pos = np.round(np.dot(inver_matrix, np.array(([x],[y],[1]))))
+            real_pos[0] = transed_pos[0][0] - 1
+            real_pos[1]= transed_pos[1][0]
+            # print(real_pos[0], real_pos[1])
 
             current_time = time.time()
             latency = round(100 * (current_time - previous_time), 2)
             previous_time = current_time
-            print(str('latency is:'), latency, str('ms'))
+            # print(str('latency is:'), latency, str('ms'))
             
             cv.namedWindow('title', cv.WINDOW_NORMAL)
             cv.imshow('title', img)
@@ -102,15 +109,13 @@ def ball_cv(real_pos_x, real_pos_y):
 
 
 def main():
-    real_pos_x = Value('d', 0.0)
-    real_pos_y = Value('d', 0.0)
-    cv_process = Process(target=ball_cv, args=(real_pos_x, real_pos_y,))
-    pwm_process = Process(target=pwm, args=(real_pos_x, real_pos_y,))
+    real_pos = Array('d', range(2))
+    cv_process = Process(target=ball_cv, args=(real_pos,))
+    pwm_process = Process(target=pwm, args=(real_pos,))
     cv_process.start()
     pwm_process.start()
     cv_process.join()
     pwm_process.join()
-    print(real_pos_x.value, real_pos_y.value)
     
 
 if __name__ == '__main__':
