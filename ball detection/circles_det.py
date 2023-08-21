@@ -12,7 +12,7 @@ def detect_circles_cpu(image_chunk, circles_output, min_Radius, max_Radius, dp, 
         # for i in circles[0,:]
         i = circles [0,0]
         center = (i[0], i[1])
-        print(center)
+        # print(center)
         cv.circle(image_chunk, center, 2, (0,100,100), 3)
         raidus = i[2]
         # print(raidus)

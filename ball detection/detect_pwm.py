@@ -29,7 +29,7 @@ def pwm(real_pos_x, real_pos_y):
     print("PWM running. Press CTRL+C to exit.")
     try:
         while True:
-            print('PWM read', real_pos_x.value, real_pos_y.value)
+            # print('PWM read', real_pos_x.value, real_pos_y.value)
             time.sleep(0.5)
             if val_1 >= 100:
                 incr_1 = -incr_1
@@ -43,6 +43,7 @@ def pwm(real_pos_x, real_pos_y):
             val_2 += incr_2
             p1.ChangeDutyCycle(val_1)
             p2.ChangeDutyCycle(val_2)
+
     finally:
         p1.stop()
         p2.stop()
@@ -69,7 +70,7 @@ def ball_cv(real_pos_x, real_pos_y):
 
     while cam.IsGrabbing():
         grabResult = cam.RetrieveResult(5000, py.TimeoutHandling_ThrowException)
-        print(str('Number of skipped images:'), grabResult.GetNumberOfSkippedImages())
+        # print(str('Number of skipped images:'), grabResult.GetNumberOfSkippedImages())
         
         if grabResult.GrabSucceeded():
             img = grabResult.Array
@@ -82,12 +83,13 @@ def ball_cv(real_pos_x, real_pos_y):
             real_pos = np.round(np.dot(inver_matrix, np.array(([x],[y],[1]))))
             real_pos_x.value = real_pos[0][0] - 1
             real_pos_y.value = real_pos[1][0]
-            print(real_pos_x, real_pos_y)
+            print(real_pos_x.value, real_pos_y.value)
+            print("\33[2A")
 
             current_time = time.time()
             latency = round(100 * (current_time - previous_time), 2)
             previous_time = current_time
-            print(str('latency is:'), latency, str('ms'))
+            # print(str('latency is:'), latency, str('ms'))
             
             cv.namedWindow('title', cv.WINDOW_NORMAL)
             cv.imshow('title', img)
@@ -110,7 +112,7 @@ def main():
     pwm_process.start()
     cv_process.join()
     pwm_process.join()
-    print(real_pos_x.value, real_pos_y.value)
+    # print("\33[1A")
     
 
 if __name__ == '__main__':
