@@ -28,7 +28,7 @@
 #
 
 import config
-import RPi.GPIO as GPIO
+import Jetson.GPIO as GPIO
 
 # gain
 ADS1263_GAIN = {

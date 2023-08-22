@@ -3,17 +3,17 @@
 
 import time
 import ADS1263
-import RPi.GPIO as GPIO
+import Jetson.GPIO as GPIO
 
 REF = 5.03          # Modify according to actual voltage   5.03
                     # external AVDD and AVSS(Default), or internal 2.5V
 
 # ADC1 test part
-TEST_ADC1       = False
+TEST_ADC1       = True
 # ADC2 test part
 TEST_ADC2       = False
 # ADC1 rate test part, For faster speeds use the C program
-TEST_ADC1_RATE   = True
+TEST_ADC1_RATE   = False
 # RTD test part 
 TEST_RTD        = False     
 

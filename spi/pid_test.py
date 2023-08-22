@@ -36,15 +36,16 @@ try:
     angle_set[0] = float(input("Angle 1 ="))
     angle_set[1] = float(input("Angle 2 ="))
 
-
     while(1):
         ADC_Value = ADC.ADS1263_GetAll(channelList)    # get ADC1 value
         for i in channelList:
-            if(ADC_Value[i]>>31 ==1):
-                angle[i] = round((REF*2 - ADC_Value[i] * REF / 0x80000000), 3)
+            if(ADC_Value[i]>>31 ==1):       #received negativ value
+                angle[i] = -round(((REF*2 - ADC_Value[i] * REF / 0x80000000) - 2.5) * 3, 2)
                 print('angle', str(i+1), ' = ', angle[i], '°', sep="")
-            else:
-                angle[i] = round((ADC_Value[i] * REF / 0x7fffffff), 3)   # 32bit
+            else:       #received positiv value
+                #change receive data (0.5V, 4.5V) to angle (-6°, 6°)
+                receive_data = (ADC_Value[i] * REF / 0x7fffffff)
+                angle[i] = round((receive_data - 2.5) * 3, 2)   # 32bit
                 print('angle', str(i+1), ' = ', angle[i], '°', sep="")
             for i in channelList:
                 print("\33[2A")
@@ -68,5 +69,8 @@ except IOError as e:
 except KeyboardInterrupt:
     print("ctrl + c:")
     print("Program end")
+    p1.stop()
+    p2.stop()
     ADC.ADS1263_Exit()
+    GPIO.cleanup()
     exit()
