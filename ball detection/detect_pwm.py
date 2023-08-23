@@ -50,7 +50,6 @@ def pwm(real_pos_x, real_pos_y):
         GPIO.cleanup()
 
 
-
 def ball_cv(real_pos_x, real_pos_y):
     tlf = py.TlFactory.GetInstance()
     device = tlf.CreateFirstDevice()
