@@ -8,9 +8,9 @@ angle_diff = [0.0, 0.0]
 angle_diff_sum = [0.0, 0.0]
 angle_diff_last = [0.0, 0.0]
 angle_set = [0.0, 0.0]
-kp = 0.4
-ki = 0.1
-kd = 0.01
+kp = 0.06
+ki = 0.006
+kd = 0.004
 
 # set up PWM
 GPIO.setmode(GPIO.BCM)
@@ -37,23 +37,25 @@ try:
     while(1):
         ADC_Value = ADC.ADS1263_GetAll(channelList)    # get ADC1 value
         for i in channelList:
-            if(ADC_Value[i]>>31 ==1):       #received negativ value
-                angle[i] = -round(((REF*2 - ADC_Value[i] * REF / 0x80000000) - 2.5) * 3, 2)
-                print('angle', str(i+1), ' = ', angle[i], '°', sep="")
-            else:       #received positiv value
-                #change receive data (0.5V, 4.5V) to angle (-6°, 6°)
-                receive_data = (ADC_Value[i] * REF / 0x7fffffff)
-                angle[i] = float('%.2f' %((receive_data - 2.5) * 3))   # 32bit
+            if(ADC_Value[i]>>31 ==1): #received negativ value, but potentiometer should not return negativ value
+                print('negativ potentiometer value received')
+                exit()
+            else:       #potentiometer eceived positiv value
+                #change receive data in V to angle in °
+                receive_data = ADC_Value[i] * REF / 0x7fffffff
+                # angle[i] = float('%.2f' %((receive_data - 2.5) * 3))   # 32bit
+                angle[i] = float('%.2f' %((4 * receive_data - 10)))
                 print('angle', str(i+1), ' = ', angle[i], '°', sep="")
         
             angle_diff[i] = angle_set[i] - angle[i]
             angle_diff_sum[i] += angle_diff[i]
-            val[i] = -(kp * angle_diff[i] + ki * angle_diff_sum[i] + kd * (angle_diff_last[i] - angle_diff[i]))
-            if val[i] > 100:
-                val[i] = 100
-            if val[i] < 0:
-                val[i] = 0
+            val[i] = 100 - 20 * (2.5 + kp * angle_diff[i] + ki * angle_diff_sum[i] + kd * (angle_diff_last[i] - angle_diff[i]))
+            if val[i] > 80:
+                val[i] = 80
+            if val[i] < 20:
+                val[i] = 20
             angle_diff_last[i] = angle_diff[i]
+            print(val[i])
             if i == 0:
                 p1.ChangeDutyCycle(val[i])
             else:
