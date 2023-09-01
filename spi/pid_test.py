@@ -8,9 +8,9 @@ angle_diff = [0.0, 0.0]
 angle_diff_sum = [0.0, 0.0]
 angle_diff_last = [0.0, 0.0]
 angle_set = [0.0, 0.0]
-kp = 0.06
-ki = 0.006
-kd = 0.004
+kp = 0.15
+ki = 0.007
+kd = 0.15
 
 # set up PWM
 GPIO.setmode(GPIO.BCM)
@@ -43,23 +43,25 @@ try:
             else:       #potentiometer eceived positiv value
                 #change receive data in V to angle in °
                 receive_data = ADC_Value[i] * REF / 0x7fffffff
-                # angle[i] = float('%.2f' %((receive_data - 2.5) * 3))   # 32bit
-                angle[i] = float('%.2f' %((4 * receive_data - 10)))
+                angle[i] = float('%.2f' %((receive_data - 2.51) * 2.91))   # 32bit
                 print('angle', str(i+1), ' = ', angle[i], '°', sep="")
+                # print("ADC1 IN%d = %lf" %(i, (ADC_Value[i] * REF / 0x7fffffff))) 
         
             angle_diff[i] = angle_set[i] - angle[i]
             angle_diff_sum[i] += angle_diff[i]
             val[i] = 100 - 20 * (2.5 + kp * angle_diff[i] + ki * angle_diff_sum[i] + kd * (angle_diff_last[i] - angle_diff[i]))
-            if val[i] > 80:
-                val[i] = 80
-            if val[i] < 20:
-                val[i] = 20
+            if val[i] > 100:
+                val[i] = 100
+            if val[i] < 0:
+                val[i] = 0
             angle_diff_last[i] = angle_diff[i]
             print(val[i])
             if i == 0:
                 p1.ChangeDutyCycle(val[i])
+                # p1.ChangeDutyCycle(100)
             else:
                 p2.ChangeDutyCycle(val[i])
+                # p2.ChangeDutyCycle(100)
         for i in channelList:
             print("\33[2A")
 
