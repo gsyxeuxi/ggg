@@ -1,4 +1,5 @@
 import time
+import math
 import ADS1263
 import Jetson.GPIO as GPIO
 
@@ -31,16 +32,20 @@ try:
         exit()
     ADC.ADS1263_SetMode(0) # 0 is singleChannel, 1 is diffChannel
     channelList = [0, 1]  # The channel must be less than 10
-    angle_set[0] = float(input("Angle 1 ="))
-    angle_set[1] = float(input("Angle 2 ="))
+    
+
+
+    previous_time = time.time()
 
     while(1):
+        angle_set[0] = 5 * math.sin(2*math.pi*previous_time/4) #T = 4s
+        angle_set[1] = 5 * math.sin(2*math.pi*previous_time/4 + math.pi/2)
         ADC_Value = ADC.ADS1263_GetAll(channelList)    # get ADC1 value
         for i in channelList:
             if(ADC_Value[i]>>31 ==1): #received negativ value, but potentiometer should not return negativ value
                 print('negativ potentiometer value received')
                 exit()
-            else:       #potentiometer eceived positiv value
+            else:       #potentiometer received positiv value
                 #change receive data in V to angle in °
                 receive_data = ADC_Value[i] * REF / 0x7fffffff
                 angle[i] = float('%.2f' %((receive_data - 2.51) * 2.91))   # 32bit
@@ -64,6 +69,12 @@ try:
                 # p2.ChangeDutyCycle(100)
         for i in channelList:
             print("\33[2A")
+        time.sleep(0.01)
+        current_time = time.time()
+        latency = round(1000 * (current_time - previous_time), 2)
+        previous_time = current_time
+        print(str('latency is:'), latency, str('ms'))
+        
 
 except IOError as e:
     print(e)

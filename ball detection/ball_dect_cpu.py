@@ -51,7 +51,7 @@ def main():
             print(real_pos_x, real_pos_y)
 
             current_time = time.time()
-            latency = round(100 * (current_time - previous_time), 2)
+            latency = round(1000 * (current_time - previous_time), 2)
             previous_time = current_time
             print(str('latency is:'), latency, str('ms'))
             
@@ -67,5 +67,5 @@ def main():
     cam.Close()
 
 
-# if __name__ == '__main__':
-#     main()
+if __name__ == '__main__':
+    main()
