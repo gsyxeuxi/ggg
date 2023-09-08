@@ -33,13 +33,16 @@ try:
         exit()
     ADC.ADS1263_SetMode(0)  # 0 is singleChannel, 1 is diffChannel
     channelList = [0, 1]  # The channel must be less than 10
-    previous_time = time.time()
+    start_time = time.time()
 
     with open('data.csv', 'w', newline='') as csvfile:
         csv_writer = csv.writer(csvfile)
+        csv_writer.writerow(['time', 'angle_set0', 'angle_set1', 'angle_real0', 'angle_real1'])
         while 1:
-            angle_set[0] = float('%.2f' % (5 * math.sin(2 * math.pi * previous_time / 8)))  # T = 8s
-            angle_set[1] = float('%.2f' % (5 * math.sin(2 * math.pi * previous_time / 8 + math.pi / 2)))
+            now_time = float('%.4f' % (time.time() - start_time))
+            current_time = time.time()
+            angle_set[0] = float('%.2f' % (5 * math.sin(2 * math.pi * now_time / 8)))  # T = 8s
+            angle_set[1] = float('%.2f' % (5 * math.sin(2 * math.pi * now_time / 8 + math.pi / 2)))
             ADC_Value = ADC.ADS1263_GetAll(channelList)  # get ADC1 value
             for i in channelList:
                 if ADC_Value[i] >> 31 == 1:  # received negative value, but potentiometer should not return negative
@@ -71,11 +74,11 @@ try:
                     # p2.ChangeDutyCycle(100)
             for i in channelList:
                 print("\33[2A")
-            csv_writer.writerow([angle_set[0], angle_set[1], angle[0], angle[1]])
+            csv_writer.writerow([now_time, angle_set[0], angle_set[1], angle[0], angle[1]])
             # time.sleep(0.01)
-            current_time = time.time()
-            latency = round(1000 * (current_time - previous_time), 2)
-            previous_time = current_time
+            
+            latency = round(1000 * (time.time() - current_time), 2)
+            # previous_time = current_time
             print(str('latency is:'), latency, str('ms'))
 except IOError as e:
     print(e)
