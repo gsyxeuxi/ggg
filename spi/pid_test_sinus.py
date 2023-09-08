@@ -1,4 +1,5 @@
 import time
+import csv
 import math
 import ADS1263
 import Jetson.GPIO as GPIO
@@ -37,8 +38,8 @@ try:
     with open('data.csv', 'w', newline='') as csvfile:
         csv_writer = csv.writer(csvfile)
         while 1:
-            angle_set[0] = 5 * math.sin(2 * math.pi * previous_time / 8)  # T = 8s
-            angle_set[1] = 5 * math.sin(2 * math.pi * previous_time / 8 + math.pi / 2)
+            angle_set[0] = float('%.2f' % (5 * math.sin(2 * math.pi * previous_time / 8)))  # T = 8s
+            angle_set[1] = float('%.2f' % (5 * math.sin(2 * math.pi * previous_time / 8 + math.pi / 2)))
             ADC_Value = ADC.ADS1263_GetAll(channelList)  # get ADC1 value
             for i in channelList:
                 if ADC_Value[i] >> 31 == 1:  # received negative value, but potentiometer should not return negative
@@ -71,7 +72,7 @@ try:
             for i in channelList:
                 print("\33[2A")
             csv_writer.writerow([angle_set[0], angle_set[1], angle[0], angle[1]])
-            time.sleep(0.01)
+            # time.sleep(0.01)
             current_time = time.time()
             latency = round(1000 * (current_time - previous_time), 2)
             previous_time = current_time
