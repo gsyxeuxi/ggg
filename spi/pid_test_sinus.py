@@ -10,9 +10,9 @@ angle_diff = [0.0, 0.0]
 angle_diff_sum = [0.0, 0.0]
 angle_diff_last = [0.0, 0.0]
 angle_set = [0.0, 0.0]
-kp = 0.15
-ki = 0.01
-kd = 0.15
+kp = 0.3
+ki = 0.07
+kd = 2.9
 
 # set up PWM
 GPIO.setmode(GPIO.BCM)
@@ -53,7 +53,7 @@ try:
                     # change receive data in V to angle in °
                     receive_data = ADC_Value[i] * REF / 0x7fffffff
                     angle[i] = float('%.2f' % ((receive_data - 2.51) * 2.91))  # 32bit
-                    print('angle', str(i + 1), ' = ', angle[i], '°', sep="")
+                    # print('angle', str(i + 1), ' = ', angle[i], '°', sep="")
                     # print("ADC1 IN%d = %lf" %(i, (ADC_Value[i] * REF / 0x7fffffff)))
 
                 angle_diff[i] = angle_set[i] - angle[i]
@@ -65,21 +65,23 @@ try:
                 if val[i] < 0:
                     val[i] = 0
                 angle_diff_last[i] = angle_diff[i]
-                print(val[i])
+                # print(val[i])
                 if i == 0:
                     p1.ChangeDutyCycle(val[i])
+                    print('1'+'   ', val[i])
                     # p1.ChangeDutyCycle(100)
                 else:
                     p2.ChangeDutyCycle(val[i])
+                    print('2'+'   ', val[i])
                     # p2.ChangeDutyCycle(100)
-            for i in channelList:
-                print("\33[2A")
+            # for i in channelList:
+                # print("\33[2A")
             csv_writer.writerow([now_time, angle_set[0], angle_set[1], angle[0], angle[1]])
             # time.sleep(0.01)
             
             latency = round(1000 * (time.time() - current_time), 2)
             # previous_time = current_time
-            print(str('latency is:'), latency, str('ms'))
+            # print(str('latency is:'), latency, str('ms'))
 except IOError as e:
     print(e)
 

@@ -8,9 +8,9 @@ angle_diff = [0.0, 0.0]
 angle_diff_sum = [0.0, 0.0]
 angle_diff_last = [0.0, 0.0]
 angle_set = [0.0, 0.0]
-kp = 0.15
-ki = 0.01
-kd = 0.15
+kp = 0.4
+ki = 0.1
+kd = 3
 
 # set up PWM
 GPIO.setmode(GPIO.BCM)
