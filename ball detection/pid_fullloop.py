@@ -19,9 +19,9 @@ def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y):
     angle_diff_sum = [0.0, 0.0]
     angle_diff_last = [0.0, 0.0]
     angle_set = [0.0, 0.0]
-    kp = 0.3
+    kp = 0.01
     ki = 0.07
-    kd = 2.9
+    kd = 3.9
     # set up PWM
     GPIO.setmode(GPIO.BCM)
     # set pin as an output pin with optional initial state of HIGH
@@ -45,6 +45,9 @@ def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y):
         while(1):
             angle_set[0] = angle_1.value
             angle_set[1] = angle_2.value
+            # print('angle1 =', angle_set[0])
+            # print('angle2 =',angle_set[1])
+            # print("\33[2A")
             ADC_Value = ADC.ADS1263_GetAll(channelList)    # get ADC1 value
             for i in channelList:
                 if(ADC_Value[i]>>31 ==1): #received negativ value, but potentiometer should not return negativ value
@@ -54,8 +57,7 @@ def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y):
                     #change receive data in V to angle in °
                     receive_data = ADC_Value[i] * REF / 0x7fffffff
                     angle[i] = float('%.2f' %((receive_data - 2.51) * 2.91))   # 32bit
-                    print('angle', str(i+1), ' = ', angle[i], '°', sep="")
-                    # print("ADC1 IN%d = %lf" %(i, (ADC_Value[i] * REF / 0x7fffffff))) 
+                    # print('angle', str(i+1), ' = ', angle[i], '°', sep="")
             
                 angle_diff[i] = angle_set[i] - angle[i]
                 angle_diff_sum[i] += angle_diff[i]
@@ -72,13 +74,13 @@ def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y):
                 else:
                     p2.ChangeDutyCycle(val[i])
                     # p2.ChangeDutyCycle(100)
-            for i in channelList:
-                print("\33[2A")
-            time.sleep(0.01)
+            # for i in channelList:
+            #     print("\33[2A")
+            # time.sleep(0.01)
             current_time = time.time()
             latency = round(1000 * (current_time - previous_time), 2)
             previous_time = current_time
-            print(str('latency is:'), latency, str('ms'))
+            # print(str('latency is:'), latency, str('ms'))
             
     except IOError as e:
         print(e)
@@ -97,9 +99,9 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y):
     pos_diff = [0.0, 0.0]
     pos_diff_sum = [0.0, 0.0]
     pos_diff_last = [0.0, 0.0]
-    kp = 0.001
-    ki = 0.0005
-    kd = 0.05
+    kp = -0.002
+    ki = -0.000001
+    kd = -0.05
     
     tlf = py.TlFactory.GetInstance()
     device = tlf.CreateFirstDevice()
@@ -134,8 +136,12 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y):
                     angle[i] = 6
                 if angle[i] < -6:
                     angle[i] = -6
+                print('angle', str(i+1), ' = ', angle[i], '°', sep="")
                 pos_diff_last[i] = pos_diff[i]
+            for i in range(2):
+                print("\33[2A")
 
+            # print(angle[0])
             angle_1.value = angle[0]
             angle_2.value = angle[1]
 

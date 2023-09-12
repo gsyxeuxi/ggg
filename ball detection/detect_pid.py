@@ -76,7 +76,7 @@ def ball_cv(real_pos):
 
     while cam.IsGrabbing():
         grabResult = cam.RetrieveResult(5000, py.TimeoutHandling_ThrowException)
-        print(str('Number of skipped images:'), grabResult.GetNumberOfSkippedImages())
+        # print(str('Number of skipped images:'), grabResult.GetNumberOfSkippedImages())
         
         if grabResult.GrabSucceeded():
             img = grabResult.Array
@@ -89,7 +89,7 @@ def ball_cv(real_pos):
             transed_pos = np.round(np.dot(inver_matrix, np.array(([x],[y],[1]))))
             real_pos[0] = transed_pos[0][0] - 1
             real_pos[1]= transed_pos[1][0]
-            # print(real_pos[0], real_pos[1])
+            print(real_pos[0], real_pos[1])
 
             current_time = time.time()
             latency = round(1000 * (current_time - previous_time), 2)

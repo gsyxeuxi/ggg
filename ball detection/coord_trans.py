@@ -5,7 +5,7 @@ def coordinate_transform(x1=156, y1=21, x2=396, y2=24, x0=268, y0=260):
     cos_theta = (x2 - x1) / math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
     sin_theta = (y2 - y1) / math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
     # print(math.degrees(math.asin(sin_theta)))
-    beta = 5/4 * math.pi
+    beta = 3/4 * math.pi
     
     flip_matrix = np.array([[1, 0, 0],
                             [0, -1, 0],
