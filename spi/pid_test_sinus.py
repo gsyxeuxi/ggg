@@ -9,10 +9,15 @@ angle = [0.0, 0.0]
 angle_diff = [0.0, 0.0]
 angle_diff_sum = [0.0, 0.0]
 angle_diff_last = [0.0, 0.0]
+angle_diff_last2 = [0.0, 0.0]
 angle_set = [0.0, 0.0]
 kp = 0.3
 ki = 0.07
 kd = 2.9
+# kp = 0.21
+# ki = 0.01
+# kd = 4.8
+
 
 # set up PWM
 GPIO.setmode(GPIO.BCM)
@@ -41,8 +46,8 @@ try:
         while 1:
             now_time = float('%.4f' % (time.time() - start_time))
             current_time = time.time()
-            angle_set[0] = float('%.2f' % (5 * math.sin(2 * math.pi * now_time / 8)))  # T = 8s
-            angle_set[1] = float('%.2f' % (5 * math.sin(2 * math.pi * now_time / 8 + math.pi / 2)))
+            angle_set[0] = float('%.2f' % (3 * math.sin(2 * math.pi * now_time / 1)))  # T = 8s
+            angle_set[1] = float('%.2f' % (3 * math.sin(2 * math.pi * now_time / 1 + math.pi / 2)))
             ADC_Value = ADC.ADS1263_GetAll(channelList)  # get ADC1 value
             for i in channelList:
                 if ADC_Value[i] >> 31 == 1:  # received negative value, but potentiometer should not return negative
@@ -58,12 +63,15 @@ try:
 
                 angle_diff[i] = angle_set[i] - angle[i]
                 angle_diff_sum[i] += angle_diff[i]
+                # val[i] = 100 - 20 * (2.5 + kp * angle_diff[i] + ki * angle_diff_sum[i] + kd * (
+                #             angle_diff[i] - 2 * angle_diff_last[i] + angle_diff_last2[i]))
                 val[i] = 100 - 20 * (2.5 + kp * angle_diff[i] + ki * angle_diff_sum[i] + kd * (
                             angle_diff[i] - angle_diff_last[i]))
                 if val[i] > 100:
                     val[i] = 100
                 if val[i] < 0:
                     val[i] = 0
+                angle_diff_last2[i] = angle_diff_last[i]
                 angle_diff_last[i] = angle_diff[i]
                 # print(val[i])
                 if i == 0:
@@ -80,8 +88,8 @@ try:
             # time.sleep(0.01)
             
             latency = round(1000 * (time.time() - current_time), 2)
-            # previous_time = current_time
-            # print(str('latency is:'), latency, str('ms'))
+            previous_time = current_time
+            print(str('latency is:'), latency, str('ms'))
 except IOError as e:
     print(e)
 

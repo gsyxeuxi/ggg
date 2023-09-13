@@ -19,9 +19,9 @@ def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y):
     angle_diff_sum = [0.0, 0.0]
     angle_diff_last = [0.0, 0.0]
     angle_set = [0.0, 0.0]
-    kp = 0.01
+    kp = 0.3
     ki = 0.07
-    kd = 3.9
+    kd = 2.9
     # set up PWM
     GPIO.setmode(GPIO.BCM)
     # set pin as an output pin with optional initial state of HIGH
@@ -99,9 +99,13 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y):
     pos_diff = [0.0, 0.0]
     pos_diff_sum = [0.0, 0.0]
     pos_diff_last = [0.0, 0.0]
-    kp = -0.002
-    ki = -0.000001
-    kd = -0.05
+    pos_diff_last2 = [0.0, 0.0]
+    # kp = -0.00001
+    # ki = -0.000005
+    # kd = -0.00043
+    kp = -0.01
+    ki = -0.00035
+    kd = -0.5
     
     tlf = py.TlFactory.GetInstance()
     device = tlf.CreateFirstDevice()
@@ -121,6 +125,7 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y):
             img = grabResult.Array
             img = cv.GaussianBlur(img,(5,5),0)
             dectect_back = detect_circles_cpu(img, cv.HOUGH_GRADIENT, dp=1, min_dist=50, param1=100, param2=36, min_Radius=26, max_Radius=32)
+            cv.circle(img, (10, 20), 2, (0,100,100), 3)
             x = dectect_back[1][0]
             y = dectect_back[1][1]
             #coordinate transform
@@ -129,9 +134,15 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y):
             real_pos_y = real_pos[1][0]
             pos_diff[0] = pos_set_x.value - real_pos_x
             pos_diff[1] = pos_set_y.value - real_pos_y
+            # print(real_pos_x, real_pos_y)
             for i in range(2):
                 pos_diff_sum[i] += pos_diff[i]
-                angle[i] = kp * pos_diff[i] + ki * pos_diff_sum[i] + kd * (pos_diff[i] - pos_diff_last[i])
+                if pos_diff_sum[i] > 800:
+                    pos_diff_sum[i] = 800
+                if pos_diff_sum[i] < -800:
+                    pos_diff_sum[i] = -800
+                angle[i] = round(kp * pos_diff[i] + ki * pos_diff_sum[i] + kd * (pos_diff[i] - pos_diff_last[i]), 3)
+                # angle[i] = kp * pos_diff[i] + ki * pos_diff_sum[i] + kd * (pos_diff[i] - 2 * pos_diff_last[i] + pos_diff_last2[i])
                 if angle[i] > 6:
                     angle[i] = 6
                 if angle[i] < -6:
