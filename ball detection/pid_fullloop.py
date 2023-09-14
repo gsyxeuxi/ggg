@@ -22,6 +22,9 @@ def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y):
     kp = 0.3
     ki = 0.07
     kd = 2.9
+    # kp = 0.42
+    # ki = 0.03
+    # kd = 1.68
     # set up PWM
     GPIO.setmode(GPIO.BCM)
     # set pin as an output pin with optional initial state of HIGH
@@ -100,12 +103,12 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y):
     pos_diff_sum = [0.0, 0.0]
     pos_diff_last = [0.0, 0.0]
     pos_diff_last2 = [0.0, 0.0]
-    # kp = -0.00001
-    # ki = -0.000005
-    # kd = -0.00043
-    kp = -0.01
-    ki = -0.00035
-    kd = -0.5
+    # kp = -0.01
+    # ki = -0.0002
+    # kd = -0.5
+    kp = -0.011
+    ki = -0.0002
+    kd = -0.69
     
     tlf = py.TlFactory.GetInstance()
     device = tlf.CreateFirstDevice()
@@ -137,10 +140,10 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y):
             # print(real_pos_x, real_pos_y)
             for i in range(2):
                 pos_diff_sum[i] += pos_diff[i]
-                if pos_diff_sum[i] > 800:
-                    pos_diff_sum[i] = 800
-                if pos_diff_sum[i] < -800:
-                    pos_diff_sum[i] = -800
+                if pos_diff_sum[i] > 1500:
+                    pos_diff_sum[i] = 1500
+                if pos_diff_sum[i] < -1500:
+                    pos_diff_sum[i] = -1500
                 angle[i] = round(kp * pos_diff[i] + ki * pos_diff_sum[i] + kd * (pos_diff[i] - pos_diff_last[i]), 3)
                 # angle[i] = kp * pos_diff[i] + ki * pos_diff_sum[i] + kd * (pos_diff[i] - 2 * pos_diff_last[i] + pos_diff_last2[i])
                 if angle[i] > 6:
