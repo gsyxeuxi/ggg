@@ -10,7 +10,8 @@ from coord_trans import coordinate_transform
 from multiprocessing import Process, Value
 
 
-inver_matrix = coordinate_transform() * 400 / 540
+inver_matrix = coordinate_transform()[0] * 400 / 540
+transfor_matrix = coordinate_transform()[1] * 540 / 400
 
 def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y):
     REF = 5.03 
@@ -22,9 +23,9 @@ def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y):
     kp = 0.3
     ki = 0.07
     kd = 2.9
-    # kp = 0.42
-    # ki = 0.03
-    # kd = 1.68
+    # kp = 0.32
+    # ki = 0.07
+    # kd = 3.08
     # set up PWM
     GPIO.setmode(GPIO.BCM)
     # set pin as an output pin with optional initial state of HIGH
@@ -98,6 +99,9 @@ def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y):
 
 
 def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y):
+    pos_set_inpic = np.round(np.dot(transfor_matrix, np.array(([pos_set_x.value],[pos_set_y.value],[1]))))
+    pos_set_inpic_x = int(pos_set_inpic[0][0])
+    pos_set_inpic_y = int(pos_set_inpic[1][0])
     angle = [0.0, 0.0]
     pos_diff = [0.0, 0.0]
     pos_diff_sum = [0.0, 0.0]
@@ -107,7 +111,7 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y):
     # ki = -0.0002
     # kd = -0.5
     kp = -0.011
-    ki = -0.0002
+    ki = -0.00025
     kd = -0.69
     
     tlf = py.TlFactory.GetInstance()
@@ -128,13 +132,14 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y):
             img = grabResult.Array
             img = cv.GaussianBlur(img,(5,5),0)
             dectect_back = detect_circles_cpu(img, cv.HOUGH_GRADIENT, dp=1, min_dist=50, param1=100, param2=36, min_Radius=26, max_Radius=32)
-            cv.circle(img, (10, 20), 2, (0,100,100), 3)
+            img= cv.drawMarker(img, (pos_set_inpic_x, pos_set_inpic_y), (0, 0, 255), markerType=0)
             x = dectect_back[1][0]
             y = dectect_back[1][1]
             #coordinate transform
             real_pos = np.round(np.dot(inver_matrix, np.array(([x],[y],[1]))))
             real_pos_x = real_pos[0][0] - 1
             real_pos_y = real_pos[1][0]
+            print(real_pos_x, real_pos_y)
             pos_diff[0] = pos_set_x.value - real_pos_x
             pos_diff[1] = pos_set_y.value - real_pos_y
             # print(real_pos_x, real_pos_y)
@@ -186,8 +191,7 @@ def main():
     plate_process.start()
     ball_process.join()
     plate_process.join()
-    # print("\33[1A")
-    
+
 
 if __name__ == '__main__':
     main()
