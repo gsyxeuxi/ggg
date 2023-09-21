@@ -11,12 +11,12 @@ angle_diff_sum = [0.0, 0.0]
 angle_diff_last = [0.0, 0.0]
 angle_diff_last2 = [0.0, 0.0]
 angle_set = [0.0, 0.0]
-# kp = 0.3
-# ki = 0.07
-# kd = 2.9
-kp = 0.32
+kp = 0.3
 ki = 0.07
-kd = 3.08
+kd = 2.9
+# kp = 0.24
+# ki = 0.05
+# kd = 4.58
 
 
 # set up PWM

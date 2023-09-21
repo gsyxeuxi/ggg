@@ -119,12 +119,11 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y):
     cam.UserSetSelector = "UserSet2"
     cam.UserSetLoad.Execute()
     cam.AcquisitionFrameRateEnable.SetValue(True)
-    cam.AcquisitionFrameRate.SetValue(60)
+    cam.AcquisitionFrameRate.SetValue(100)
     cam.StartGrabbing(py.GrabStrategy_LatestImageOnly)
     previous_time = time.time()
     while cam.IsGrabbing():
         grabResult = cam.RetrieveResult(5000, py.TimeoutHandling_ThrowException)
-        # print(str('Number of skipped images:'), grabResult.GetNumberOfSkippedImages())
         if grabResult.GrabSucceeded():
             img = grabResult.Array
             img = cv.GaussianBlur(img,(3,3),0)
@@ -177,16 +176,20 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y):
 
 
 def main():
-    pos_set_x = Value('d', float(input("Pos x =")))
-    pos_set_y = Value('d', float(input("Pos y =")))
-    angle_1 = Value('d', 0.0)
-    angle_2 = Value('d', 0.0)
-    ball_process = Process(target=PIDBall, args=(angle_1, angle_2, pos_set_x, pos_set_y,))
-    plate_process = Process(target=PIDPlate, args=(angle_1, angle_2, pos_set_x, pos_set_y,))
-    ball_process.start()
-    plate_process.start()
-    ball_process.join()
-    plate_process.join()
+    
+    while 1 :
+        print('Please set the position of ball')
+        pos_set_x = Value('d', float(input("Pos x =")))
+        pos_set_y = Value('d', float(input("Pos y =")))
+        angle_1 = Value('d', 0.0)
+        angle_2 = Value('d', 0.0)
+        ball_process = Process(target=PIDBall, args=(angle_1, angle_2, pos_set_x, pos_set_y,))
+        plate_process = Process(target=PIDPlate, args=(angle_1, angle_2, pos_set_x, pos_set_y,))
+        ball_process.start()
+        plate_process.start()
+        # third process for set_xy
+        ball_process.join()
+        plate_process.join()
 
 
 if __name__ == '__main__':
