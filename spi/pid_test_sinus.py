@@ -46,8 +46,8 @@ try:
         while 1:
             now_time = float('%.4f' % (time.time() - start_time))
             current_time = time.time()
-            angle_set[0] = float('%.2f' % (3 * math.sin(2 * math.pi * now_time / 1)))  # T = 8s
-            angle_set[1] = float('%.2f' % (3 * math.sin(2 * math.pi * now_time / 1 + math.pi / 2)))
+            angle_set[0] = float('%.2f' % (3 * math.sin(2 * math.pi * now_time / 8)))  # T = 8s
+            angle_set[1] = float('%.2f' % (3 * math.sin(2 * math.pi * now_time / 8 + math.pi / 2)))
             ADC_Value = ADC.ADS1263_GetAll(channelList)  # get ADC1 value
             for i in channelList:
                 if ADC_Value[i] >> 31 == 1:  # received negative value, but potentiometer should not return negative

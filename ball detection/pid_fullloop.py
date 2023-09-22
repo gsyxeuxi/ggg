@@ -19,7 +19,7 @@ def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y):
     angle_set = [0.0, 0.0]
     kp = 0.3
     ki = 0.07
-    kd = 2.9
+    kd = 1.8
     # kp = 0.24
     # ki = 0.05
     # kd = 4.58
@@ -108,8 +108,8 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y):
     # ki = -0.00019
     # kd = -0.7
     kp = -0.011
-    ki = -0.00025
-    kd = -0.69
+    ki = -0.0005
+    kd = -0.9
     
     tlf = py.TlFactory.GetInstance()
     device = tlf.CreateFirstDevice()
