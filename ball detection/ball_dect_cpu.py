@@ -39,7 +39,7 @@ def main():
         if grabResult.GrabSucceeded():
             img = grabResult.Array
             img = cv.GaussianBlur(img,(3, 3),0)
-            dectect_back = detect_circles_cpu(img, cv.HOUGH_GRADIENT, dp=1, min_dist=50, param1=100, param2=36, min_Radius=26, max_Radius=32)
+            dectect_back = detect_circles_cpu(img, cv.HOUGH_GRADIENT, dp=1, min_dist=50, param1=100, param2=26, min_Radius=26, max_Radius=32)
             x = dectect_back[1][0]
             y = dectect_back[1][1]
 
