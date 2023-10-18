@@ -19,7 +19,7 @@ def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y):
     angle_set = [0.0, 0.0]
     kp = 0.3
     ki = 0.07
-    kd = 1.8
+    kd = 2.0
     # kp = 0.24
     # ki = 0.05
     # kd = 4.58
