@@ -10,7 +10,7 @@ from coord_trans import coordinate_transform
 from multiprocessing import Process, Value
 
 
-def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y):
+def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
     REF = 5.03 
     angle = [0.0, 0.0]
     angle_diff = [0.0, 0.0]
@@ -59,7 +59,7 @@ def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y):
                     receive_data = ADC_Value[i] * REF / 0x7fffffff
                     angle[i] = float('%.2f' %((receive_data - 2.51) * 2.91))   # 32bit
                     # print('angle', str(i+1), ' = ', angle[i], '°', sep="")
-            
+
                 angle_diff[i] = angle_set[i] - angle[i]
                 angle_diff_sum[i] += angle_diff[i]
                 val[i] = 100 - 20 * (2.5 + kp * angle_diff[i] + ki * angle_diff_sum[i] + kd * (angle_diff[i] - angle_diff_last[i]))
@@ -95,21 +95,20 @@ def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y):
         exit()
 
 
-def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y):
+def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
     inver_matrix = coordinate_transform()
     pos_set_trans = np.round(np.dot(inver_matrix, np.array(([pos_set_x.value],[pos_set_y.value],[1]))))
     pos_set_trans_x = int(pos_set_trans[0][0]) - 1
     pos_set_trans_y = int(pos_set_trans[1][0])
     angle = [0.0, 0.0]
     pos_diff = [0.0, 0.0]
-    pos_diff_sum = [0.0, 0.0]
     pos_diff_last = [0.0, 0.0]
-    # kp = -0.01
-    # ki = -0.00019
-    # kd = -0.7
-    kp = -0.011
-    ki = -0.0005
-    kd = -0.9
+    pos_last_x = 0
+    pos_last_y = 0
+    vel_diff = np.zeros(2)
+    c0 = -0.03
+    c1 = -0.009
+    latency = 1000/60
     
     tlf = py.TlFactory.GetInstance()
     device = tlf.CreateFirstDevice()
@@ -138,15 +137,15 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y):
             real_pos_y = real_pos[1][0]
             pos_diff[0] = pos_set_trans_x - real_pos_x
             pos_diff[1] = pos_set_trans_y - real_pos_y
-            print(real_pos_x, real_pos_y)
+            vel_x = np.round((real_pos_x - pos_last_x) * 1000 / latency, 3) #dt = 1/60
+            vel_y = np.round((real_pos_y - pos_last_y) * 1000 / latency, 3)
+            # print('velx is:', vel_x)
+            # print('vely is:', vel_y)
+            vel_diff[0] = vel_set_x.value - vel_x
+            vel_diff[1] = vel_set_y.value - vel_y
+            # print(real_pos_x, real_pos_y)
             for i in range(2):
-                pos_diff_sum[i] += pos_diff[i]
-                if pos_diff_sum[i] > 1500:
-                    pos_diff_sum[i] = 1500
-                if pos_diff_sum[i] < -1500:
-                    pos_diff_sum[i] = -1500
-                angle[i] = round(kp * pos_diff[i] + ki * pos_diff_sum[i] + kd * (pos_diff[i] - pos_diff_last[i]), 3)
-                # angle[i] = kp * pos_diff[i] + ki * pos_diff_sum[i] + kd * (pos_diff[i] - 2 * pos_diff_last[i] + pos_diff_last2[i])
+                angle[i] = round(c0 * pos_diff[i] + c1 * vel_diff[i], 3)
                 if angle[i] > 6:
                     angle[i] = 6
                 if angle[i] < -6:
@@ -155,7 +154,9 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y):
                 pos_diff_last[i] = pos_diff[i]
             for i in range(2):
                 print("\33[2A")
-
+            
+            pos_last_x = real_pos_x
+            pos_last_y = real_pos_y
             # print(angle[0])
             angle_1.value = angle[0]
             angle_2.value = angle[1]
@@ -179,10 +180,12 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y):
 def main():
     pos_set_x = Value('d', float(input("Pos x =")))
     pos_set_y = Value('d', float(input("Pos y =")))
+    vel_set_x = Value('d', 0.0)
+    vel_set_y = Value('d', 0.0)
     angle_1 = Value('d', 0.0)
     angle_2 = Value('d', 0.0)
-    ball_process = Process(target=PIDBall, args=(angle_1, angle_2, pos_set_x, pos_set_y,))
-    plate_process = Process(target=PIDPlate, args=(angle_1, angle_2, pos_set_x, pos_set_y,))
+    ball_process = Process(target=PIDBall, args=(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y,))
+    plate_process = Process(target=PIDPlate, args=(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y,))
     ball_process.start()
     plate_process.start()
     ball_process.join()

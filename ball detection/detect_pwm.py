@@ -88,7 +88,7 @@ def ball_cv(real_pos_x, real_pos_y):
             current_time = time.time()
             latency = round(1000 * (current_time - previous_time), 2)
             previous_time = current_time
-            # print(str('latency is:'), latency, str('ms'))
+            print(str('latency is:'), latency, str('ms'))
             
             cv.namedWindow('title', cv.WINDOW_NORMAL)
             cv.imshow('title', img)
