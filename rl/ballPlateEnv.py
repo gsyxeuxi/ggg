@@ -83,13 +83,14 @@ class Ball_On_Plate_Robot_Env(gym.Env):
     def step(self, action):
         self.T_current = time.perf_counter()
         self.dt = self.T_current-self.T_last
-        print("************",self.dt,"*************")           
+        # print("************",self.dt,"*************")        
         self.T_last = self.T_current
         # Bene's thesis chapter8:
         # ************action here is the parameters of a formula************
         
         # ************get observation space:************
         obs = self._get_obs()
+        # obs = 100 * np.random.normal(0,2.5, size=8)
         # ball_pos_x = obs[0]
         # ball_pos_y = obs[1]
         # ball_velocity_x = obs[2]
@@ -103,8 +104,8 @@ class Ball_On_Plate_Robot_Env(gym.Env):
         vel_diff_x = obs[6] - obs[2]
         vel_diff_y = obs[7] - obs[3]
         
-        angle_x = round(c0 * pos_diff_x + c1 * vel_diff_x, 3)
-        angle_y = round(c0 * pos_diff_y + c1 * vel_diff_y, 3)
+        angle_x = round((action[0]-0.25) * pos_diff_x + (action[1]-0.25) * vel_diff_x, 3)
+        angle_y = round((action[0]-0.25) * pos_diff_y + (action[1]-0.25) * vel_diff_y, 3)
         angle = np.clip([angle_x, angle_y], -6, 6)
 
         done = False
@@ -114,7 +115,7 @@ class Ball_On_Plate_Robot_Env(gym.Env):
         costs_pos = 4*math.sqrt(costs_pos)+costs_pos**2
         costs_vel = 0.01*np.abs(vel_diff_x)+0.01*np.abs(vel_diff_y)
         costs_vel = 4*math.sqrt(costs_vel)+costs_vel**2
-        costs_action = (0.6*np.abs(angle[0])+0.6*np.abs(angle[1]))
+        costs_action = (0.1*np.abs(angle[0])+0.1*np.abs(angle[1]))
         costs_action = 4*math.sqrt(costs_action)+costs_action**2
         total_costs = costs_pos + costs_vel + costs_action
         self.reward = -total_costs
