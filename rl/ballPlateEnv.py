@@ -1,12 +1,16 @@
 import gym
+import pypylon.pylon as py
 import numpy as np
+import cv2 as cv
 import math
 import csv
 import time
+from circles_det import detect_circles_cpu
+from coord_trans import coordinate_transform
 
 class Ball_On_Plate_Robot_Env(gym.Env):
     metadata = {"render.modes": ["human"]}  # metadata attribute is used to define render model and the framrate
-
+    
     def __init__(self,position) -> None:
         self._dt = 1.0/60.0 # TODO:check sampling time 1/600
         self.max_env_steps = 2500
@@ -18,7 +22,10 @@ class Ball_On_Plate_Robot_Env(gym.Env):
         self.max_angle = 6.0
         self.T_current = 0
         self.T_last = 0
-        self.dt = 0
+        # self.dt = 0
+        self.pos_last_x = 270
+        self.pos_last_y = 270
+        self.inver_matrix = coordinate_transform()
         # *************************************************** Define the Observation Space ***************************************************
         """
         Bene:
@@ -41,18 +48,74 @@ class Ball_On_Plate_Robot_Env(gym.Env):
             writer = csv.writer(csvfile)
             #columns_name
             writer.writerow(["x_current","y_current","d_x","d_y","c_0","c_1","angle_x","angle_y","reward"])
+        
+        # *************************************************** Setup the Camera ***************************************************
+        self.tlf = py.TlFactory.GetInstance()
+        self.device = self.tlf.CreateFirstDevice()
+        self.cam = py.InstantCamera(self.device)
+        self.cam.Open()
+        #reset the camera
+        self.cam.UserSetSelector = "UserSet2"
+        self.cam.UserSetLoad.Execute()
+        self.cam.AcquisitionFrameRateEnable.SetValue(True)
+        self.cam.AcquisitionFrameRate.SetValue(60)
+        self.cam.StartGrabbing(py.GrabStrategy_LatestImageOnly)
 
     def _get_obs(self):
-        dt = self._dt
+        self.previous_time = time.time()
+        pos_set_trans = np.round(np.dot(self.inver_matrix, np.array(([self.position[0].value],[self.position[1].value],[1]))))
+        pos_set_trans_x = int(pos_set_trans[0][0]) - 1
+        pos_set_trans_y = int(pos_set_trans[1][0])
+
+        # while self.cam.IsGrabbing():
+        grabResult = self.cam.RetrieveResult(5000, py.TimeoutHandling_ThrowException)
+        # print(str('Number of skipped images:'), grabResult.GetNumberOfSkippedImages())
+        if grabResult.GrabSucceeded():
+            img = grabResult.Array
+            img = cv.GaussianBlur(img,(3,3),0)
+            dectect_back = detect_circles_cpu(img, cv.HOUGH_GRADIENT, dp=1, min_dist=50, param1=100, param2=36, min_Radius=26, max_Radius=32)
+            # img= cv.drawMarker(img, (int(pos_set_x.value), int(pos_set_y.value)), (0, 0, 255), markerType=1)
+            x = dectect_back[1][0]
+            y = dectect_back[1][1]
+            #coordinate transform
+            real_pos = np.round(np.dot(self.inver_matrix, np.array(([x],[y],[1]))))
+            real_pos_x = real_pos[0][0] - 1
+            real_pos_y = real_pos[1][0]
+            # print(real_pos_x, real_pos_y)
+            pos_diff_x = pos_set_trans_x - real_pos_x
+            pos_diff_y = pos_set_trans_y - real_pos_y
+            
+            self.current_time = time.time()
+            latency = round(1000 * (self.current_time - self.previous_time), 2)
+            # print(str('latency is:'), latency, str('ms'))
+            self.previous_time = self.current_time
+            vel_x = np.round((real_pos_x - self.pos_last_x) * 1000 / latency, 3) #dt = 1/60
+            vel_y = np.round((real_pos_y - self.pos_last_y) * 1000 / latency, 3)
+            self.pos_last_x = real_pos_x
+            self.pos_last_y = real_pos_y
+            # print('velx is:', vel_x)
+            # print('vely is:', vel_y)
+            # print(real_pos_x, real_pos_y)                
+            # for i in range(2):
+            #     print("\33[2A")
+            # print(str('latency is:'), latency, str('ms'))
+            cv.namedWindow('title', cv.WINDOW_NORMAL)
+            cv.imshow('title', img)
+            k = cv.waitKey(1)
+            # if k == 27:
+            #     break
+        grabResult.Release()
+    
+        # dt = self._dt
         observation = np.array([
-            self.position[0],   # current pos x
-            self.position[1],   # current pos y
-            self.position[2],   # velocity x
-            self.position[3],   # velocity y
-            self.position[4],   # set pos x
-            self.position[5],   # set pos y
-            self.position[6],   # set vel x
-            self.position[7]    # set vel y
+            real_pos_x,   # current pos x
+            real_pos_y,   # current pos y
+            vel_x,   # velocity x
+            vel_y,   # velocity y
+            pos_set_trans_x,   # set pos x
+            pos_set_trans_y,   # set pos y
+            self.position[2].value,   # set vel x
+            self.position[3].value    # set vel y
             ])
         return observation
 
@@ -68,12 +131,10 @@ class Ball_On_Plate_Robot_Env(gym.Env):
     #         self.angle_x,
     #         self.angle_y
     #     ])
-
     #     with open("data.csv","a+") as csvfile: 
     #         writer = csv.writer(csvfile)
     #         writer.writerow([logs[0],logs[1],logs[0]-logs[2],logs[1]-logs[3],logs[4],logs[5],logs[7],logs[8],logs[6]])
     #     return logs
-
 
     def reset(self):
         self.count = 0 
@@ -85,9 +146,6 @@ class Ball_On_Plate_Robot_Env(gym.Env):
         self.dt = self.T_current-self.T_last
         # print("************",self.dt,"*************")        
         self.T_last = self.T_current
-        # Bene's thesis chapter8:
-        # ************action here is the parameters of a formula************
-        
         # ************get observation space:************
         obs = self._get_obs()
         # obs = 100 * np.random.normal(0,2.5, size=8)
@@ -107,6 +165,8 @@ class Ball_On_Plate_Robot_Env(gym.Env):
         angle_x = round((action[0]-0.25) * pos_diff_x + (action[1]-0.25) * vel_diff_x, 3)
         angle_y = round((action[0]-0.25) * pos_diff_y + (action[1]-0.25) * vel_diff_y, 3)
         angle = np.clip([angle_x, angle_y], -6, 6)
+        # for i in range(2):
+        #     print("\33[2A")
 
         done = False
         # ************Arduino output the desired angle***********
@@ -125,10 +185,13 @@ class Ball_On_Plate_Robot_Env(gym.Env):
         # self.count = self.count + 1
 
         # print("x_ball:",ball_pos_x,"y_ball:",ball_pos_y,"action 1:",action[0],"action 2:",action[1])
-        return obs, -total_costs, done,{}
+        return obs, -total_costs, done, angle[0], angle[1], {}
 
     def render(self, mode='human'):
         return None
         
     def close(self):
+        self.cam.StopGrabbing()
+        cv.destroyAllWindows()
+        self.cam.Close()
         return None

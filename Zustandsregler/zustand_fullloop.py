@@ -108,6 +108,8 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
     vel_diff = np.zeros(2)
     c0 = -0.03
     c1 = -0.009
+    # c0 = -0.5
+    # c1 = 0
     latency = 1000/60
     
     tlf = py.TlFactory.GetInstance()
@@ -150,7 +152,8 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
                     angle[i] = 6
                 if angle[i] < -6:
                     angle[i] = -6
-                print('angle', str(i+1), ' = ', angle[i], '°', sep="")
+                # print('angle', str(i+1), ' = ', angle[i], '°', sep="")
+                print(pos_set_trans_x, real_pos_x)
                 pos_diff_last[i] = pos_diff[i]
             for i in range(2):
                 print("\33[2A")
