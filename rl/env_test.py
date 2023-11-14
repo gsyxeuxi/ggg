@@ -2,9 +2,9 @@ import sklearn
 import cv2 as cv
 import os
 import ADS1263
+import pypylon.pylon as py
 import Jetson.GPIO as GPIO
-from multiprocessing.sharedctypes import Array
-from multiprocessing import Process
+from multiprocessing.sharedctypes import Array, Value
 import math
 import csv
 import time
@@ -21,7 +21,9 @@ tf.config.experimental.set_memory_growth(gpus[0], True)
         #[tf.config.LogicalDeviceConfiguration(memory_limit=2048)])
 logical_gpus = tf.config.list_logical_devices('GPU')
 import tensorlayer as tl
-from multiprocessing import Process, Value
+from multiprocessing import Process
+from circles_det import detect_circles_cpu
+from coord_trans import coordinate_transform
 
 #####################  hyper parameters  ####################
 
@@ -43,19 +45,16 @@ BATCH_SIZE = 64  # update action batch size
 VAR = 0.1  # control exploration
 
 
-def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
+def PIDPlate(angle_set, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
     REF = 5.03 
     angle = [0.0, 0.0]
     angle_diff = [0.0, 0.0]
     angle_diff_sum = [0.0, 0.0]
     angle_diff_last = [0.0, 0.0]
-    angle_set = [0.0, 0.0]
+    # angle_set = [0.0, 0.0]
     kp = 0.3
     ki = 0.07
     kd = 2.0
-    # kp = 0.24
-    # ki = 0.05
-    # kd = 4.58
     # set up PWM
     GPIO.setmode(GPIO.BCM)
     # set pin as an output pin with optional initial state of HIGH
@@ -76,9 +75,8 @@ def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
         channelList = [0, 1]  # The channel must be less than 10
         previous_time = time.time()
         while(1):
-            angle_set[0] = angle_1.value
-            angle_set[1] = angle_2.value
-            print(angle_1.value, angle_2.value)
+            angle_value = angle_set[:]
+            print(angle_value)
             # print('angle1 =', angle_set[0])
             # print('angle2 =',angle_set[1])
             # print("\33[2A")
@@ -127,6 +125,59 @@ def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
         ADC.ADS1263_Exit()
         exit()
 
+def DetectBall(angle, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y):
+    inver_matrix = coordinate_transform()
+    #could move in while loop later
+    pos_set_trans = np.round(np.dot(inver_matrix, np.array(([pos_set_x.value],[pos_set_y.value],[1]))))
+    pos_set_trans_x = int(pos_set_trans[0][0]) - 1
+    pos_set_trans_y = int(pos_set_trans[1][0])
+
+    pos_last_x = 270
+    pos_last_y = 270
+    latency = 1000/60
+    tlf = py.TlFactory.GetInstance()
+    device = tlf.CreateFirstDevice()
+    cam = py.InstantCamera(device)
+    cam.Open()
+    #reset the camera
+    cam.UserSetSelector = "UserSet2"
+    cam.UserSetLoad.Execute()
+    cam.AcquisitionFrameRateEnable.SetValue(True)
+    cam.AcquisitionFrameRate.SetValue(60)
+    cam.StartGrabbing(py.GrabStrategy_LatestImageOnly)
+    previous_time = time.time()
+    while cam.IsGrabbing():
+        grabResult = cam.RetrieveResult(5000, py.TimeoutHandling_ThrowException)
+        # print(str('Number of skipped images:'), grabResult.GetNumberOfSkippedImages())
+        if grabResult.GrabSucceeded():
+            img = grabResult.Array
+            img = cv.GaussianBlur(img,(3,3),0)
+            dectect_back = detect_circles_cpu(img, cv.HOUGH_GRADIENT, dp=1, min_dist=50, param1=100, param2=36, min_Radius=26, max_Radius=32)
+            img= cv.drawMarker(img, (int(pos_set_trans_x), int(pos_set_trans_y)), (0, 0, 255), markerType=1)
+            x = dectect_back[1][0]
+            y = dectect_back[1][1]
+            #coordinate transform
+            real_pos = np.round(np.dot(inver_matrix, np.array(([x],[y],[1]))))
+            real_pos_x.value = real_pos[0][0] - 1
+            real_pos_y.value = real_pos[1][0]
+            vel_x.value = np.round((real_pos_x.value - pos_last_x) * 1000 / latency, 3) #dt = 1/60
+            vel_y.value = np.round((real_pos_y.value- pos_last_y) * 1000 / latency, 3)
+            pos_last_x = real_pos_x.value
+            pos_last_y = real_pos_y.value
+            current_time = time.time()
+            latency = round(1000 * (current_time - previous_time), 2)
+            previous_time = current_time
+            # print(str('latency is:'), latency, str('ms'))
+            cv.namedWindow('title', cv.WINDOW_NORMAL)
+            cv.imshow('title', img)
+            k = cv.waitKey(1)
+            if k == 27:
+                break
+        grabResult.Release()
+    cam.StopGrabbing()
+    cv.destroyAllWindows()
+    cam.Close()
+
 ###############################  DDPG  ####################################
 class DDPG(object):
     """
@@ -137,6 +188,7 @@ class DDPG(object):
         # self.memory = np.zeros((MEMORY_CAPACITY, 19), dtype=np.float32)
         self.pointer = 0
         self.action_dim, self.state_dim, self.action_range = action_dim, state_dim, action_range
+        print(action_range)
         self.var = VAR
 
         W_init = tf.random_normal_initializer(mean=0, stddev=0.3)
@@ -295,19 +347,25 @@ class DDPG(object):
         tl.files.load_hdf5_to_weights_in_order(os.path.join(path, 'critic.hdf5'), self.critic)
         tl.files.load_hdf5_to_weights_in_order(os.path.join(path, 'critic_target.hdf5'), self.critic_target)
 
-
 if __name__ == '__main__':
     pos_set_x = Value('d', float(input("Pos x =")))
     pos_set_y = Value('d', float(input("Pos y =")))
     vel_set_x = Value('d', 0.0)
     vel_set_y = Value('d', 0.0)
-    angle_2 = Value('d', 0.0)
-    angle_1 = Value('d', 0.0)
-    arr = [pos_set_x, pos_set_y, vel_set_x, vel_set_y]
-
-    plate_process = Process(target=PIDPlate, args=(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y,))
+    # angle_1 = Value('d', 0.0)
+    # angle_2 = Value('d', 0.0)
+    angle_set = Array('d', [0.0, 0.0])
+    real_pos_x = Value('d', 0.0)
+    real_pos_y = Value('d', 0.0)
+    vel_x = Value('d', 0.0)
+    vel_y = Value('d', 0.0)
+    plate_process = Process(target=PIDPlate, args=(angle_set, pos_set_x, pos_set_y, vel_set_x, vel_set_y,))
+    detect_process = Process(target=DetectBall, args=(angle_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y,))
     plate_process.start()
-    # plate_process.join()
+    detect_process.start()
+    
+    #Main process training 
+    arr = [real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y]
     env = ballPlateEnv.Ball_On_Plate_Robot_Env(position=arr)
     env.reset()
     np.random.seed(RANDOM_SEED)
@@ -325,8 +383,12 @@ if __name__ == '__main__':
         for step in range(MAX_STEPS):
             # Add exploration noise
             action = agent.get_action(state)
-            state_, reward, done, angle_1.value, angle_2.vlaue, _ = env.step(action)
-            print(angle_1.value, angle_2.vlaue)
+            # state_, reward, done, angle_1.value, angle_2.vlaue, _ = env.step(action)
+            state_, reward, done, angle, _ = env.step(action)
+            # print(angle[0].value, angle[1].vlaue)
+            # print(angle)
+            for i in range(2):
+                angle_set[i] = angle[i]
             agent.store_transition(state, action, reward, state_)
             c_value.append(action)
             if agent.pointer > MEMORY_CAPACITY:
@@ -359,3 +421,6 @@ if __name__ == '__main__':
     plt.ylabel('Control parameters')
     plt.legend()
     plt.savefig(os.path.join('image', '_'.join(["1", ENV_ID])))
+
+    plate_process.join()
+    detect_process.join()

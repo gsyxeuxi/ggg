@@ -1,7 +1,7 @@
 import math
 import numpy as np
+import gym
 
-a = -7
-b = 4
-c = np.clip([a, b], -6, 6)
-print(c)
+
+action_space = gym.spaces.Box(low=-0.25, high=0.25, shape=(2,), dtype=np.float32)
+print(action_space)
