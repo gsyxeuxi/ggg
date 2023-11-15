@@ -27,12 +27,12 @@ from coord_trans import coordinate_transform
 
 #####################  hyper parameters  ####################
 
-RANDOM_SEED = 2  # random seed, can be either an int number or None
+RANDOM_SEED = 1  # random seed, can be either an int number or None
 RENDER = False  # render while training
 
 ENV_ID = 'BOP'
 ALG_NAME = 'DDPG'
-TRAIN_EPISODES = 100  # total number of episodes for training
+TRAIN_EPISODES = 2  # total number of episodes for training
 TEST_EPISODES = 10  # total number of episodes for training
 MAX_STEPS = 200  # total number of steps for each episode
 
@@ -40,9 +40,9 @@ LR_A = 0.001  # learning rate for actor
 LR_C = 0.002  # learning rate for critic
 GAMMA = 0.9  # reward discount
 TAU = 0.01  # soft replacement
-MEMORY_CAPACITY = 10000  # size of replay buffer
+MEMORY_CAPACITY = 200  # size of replay buffer
 BATCH_SIZE = 64  # update action batch size
-VAR = 0.1  # control exploration
+VAR = 0.05  # control exploration
 
 
 def PIDPlate(angle_set, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
@@ -73,24 +73,15 @@ def PIDPlate(angle_set, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
             exit()
         ADC.ADS1263_SetMode(0) # 0 is singleChannel, 1 is diffChannel
         channelList = [0, 1]  # The channel must be less than 10
-        previous_time = time.time()
         while(1):
-            angle_value = angle_set[:]
-            print(angle_value)
-            # print('angle1 =', angle_set[0])
-            # print('angle2 =',angle_set[1])
-            # print("\33[2A")
+            # angle_value = angle_set[:]
+            print(angle_set[0], angle_set[1])
             ADC_Value = ADC.ADS1263_GetAll(channelList)    # get ADC1 value
             for i in channelList:
                 if(ADC_Value[i]>>31 ==1): #received negativ value, but potentiometer should not return negativ value
                     print('negativ potentiometer value received')
-                    exit()
-                else:       #potentiometer received positiv value
-                    #change receive data in V to angle in °
-                    receive_data = ADC_Value[i] * REF / 0x7fffffff
-                    angle[i] = float('%.2f' %((receive_data - 2.51) * 2.91))   # 32bit
+                    exit()                  # p2.ChangeDutyCycle(100) 
                     # print('angle', str(i+1), ' = ', angle[i], '°', sep="")
-
                 angle_diff[i] = angle_set[i] - angle[i]
                 angle_diff_sum[i] += angle_diff[i]
                 val[i] = 100 - 20 * (2.5 + kp * angle_diff[i] + ki * angle_diff_sum[i] + kd * (angle_diff[i] - angle_diff_last[i]))
@@ -102,18 +93,8 @@ def PIDPlate(angle_set, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
                 # print(val[i])
                 if i == 0:
                     p1.ChangeDutyCycle(val[i])
-                    # p1.ChangeDutyCycle(100)
                 else:
-                    p2.ChangeDutyCycle(val[i])
-                    # p2.ChangeDutyCycle(100)
-            # for i in channelList:
-            #     print("\33[2A")
-            # time.sleep(0.01)
-            current_time = time.time()
-            latency = round(1000 * (current_time - previous_time), 2)
-            previous_time = current_time
-            # print(str('latency is:'), latency, str('ms'))
-            
+                    p2.ChangeDutyCycle(val[i])   
     except IOError as e:
         print(e)
     
@@ -188,7 +169,6 @@ class DDPG(object):
         # self.memory = np.zeros((MEMORY_CAPACITY, 19), dtype=np.float32)
         self.pointer = 0
         self.action_dim, self.state_dim, self.action_range = action_dim, state_dim, action_range
-        print(action_range)
         self.var = VAR
 
         W_init = tf.random_normal_initializer(mean=0, stddev=0.3)
@@ -352,8 +332,6 @@ if __name__ == '__main__':
     pos_set_y = Value('d', float(input("Pos y =")))
     vel_set_x = Value('d', 0.0)
     vel_set_y = Value('d', 0.0)
-    # angle_1 = Value('d', 0.0)
-    # angle_2 = Value('d', 0.0)
     angle_set = Array('d', [0.0, 0.0])
     real_pos_x = Value('d', 0.0)
     real_pos_y = Value('d', 0.0)
@@ -383,12 +361,11 @@ if __name__ == '__main__':
         for step in range(MAX_STEPS):
             # Add exploration noise
             action = agent.get_action(state)
-            # state_, reward, done, angle_1.value, angle_2.vlaue, _ = env.step(action)
+            # print(action)
             state_, reward, done, angle, _ = env.step(action)
-            # print(angle[0].value, angle[1].vlaue)
-            # print(angle)
             for i in range(2):
                 angle_set[i] = angle[i]
+            print('angle set is', angle_set[0],angle_set[1])
             agent.store_transition(state, action, reward, state_)
             c_value.append(action)
             if agent.pointer > MEMORY_CAPACITY:
@@ -415,12 +392,12 @@ if __name__ == '__main__':
         os.makedirs('image')
     plt.savefig(os.path.join('image', '_'.join([ALG_NAME, ENV_ID])))
     plt.figure() #create new figure
-    plt.plot(c_value[:, 0], label='c0')
-    plt.plot(c_value[:, 1], label='c1')
+    plt.plot(c_value[:][0], label='c0')
+    plt.plot(c_value[:][1], label='c1')
     plt.xlabel('Timestep')
     plt.ylabel('Control parameters')
     plt.legend()
     plt.savefig(os.path.join('image', '_'.join(["1", ENV_ID])))
-
+    print('training finished, please press "ctrl+c"')
     plate_process.join()
     detect_process.join()

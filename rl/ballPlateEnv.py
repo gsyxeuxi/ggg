@@ -25,6 +25,7 @@ class Ball_On_Plate_Robot_Env(gym.Env):
         # self.dt = 0
         self.pos_last_x = 270
         self.pos_last_y = 270
+        self.max_action = 0.05
         self.inver_matrix = coordinate_transform()
         # *************************************************** Define the Observation Space ***************************************************
         """
@@ -42,7 +43,7 @@ class Ball_On_Plate_Robot_Env(gym.Env):
         """
         A 2-Dim Space: Control the voltage of two electromagnet
         """
-        self.action_space = gym.spaces.Box(low=-0.25, high=0.25, shape=(2,), dtype=np.float32)        
+        self.action_space = gym.spaces.Box(low=-self.max_action, high=self.max_action, shape=(2,), dtype=np.float32)        
         
         with open("data.csv","w") as csvfile: 
             writer = csv.writer(csvfile)
@@ -110,39 +111,25 @@ class Ball_On_Plate_Robot_Env(gym.Env):
         pos_diff_y = obs[5] - obs[1]
         vel_diff_x = obs[6] - obs[2]
         vel_diff_y = obs[7] - obs[3]
-        
-        angle_x = round((action[0]-0.25) * pos_diff_x + (action[1]-0.25) * vel_diff_x, 3)
-        angle_y = round((action[0]-0.25) * pos_diff_y + (action[1]-0.25) * vel_diff_y, 3)
-        print('##', angle_x, angle_y)
+        angle_x = round((action[0]-self.max_action) * pos_diff_x + (action[1]-self.max_action) * vel_diff_x, 3)
+        angle_y = round((action[0]-self.max_action) * pos_diff_y + (action[1]-self.max_action) * vel_diff_y, 3)
+        # print('##', angle_x, angle_y)
         angle = np.clip([angle_x, angle_y], -6, 6)
-        # for i in range(2):
-        #     print("\33[2A")
-
         done = False
-        # ************Arduino output the desired angle***********
         # ************calculate the rewards************
-        costs_pos = np.abs(pos_diff_x)+np.abs(pos_diff_y)
+        costs_pos = 0.1*np.abs(pos_diff_x)+0.1*np.abs(pos_diff_y)
         costs_pos = 4*math.sqrt(costs_pos)+costs_pos**2
-        costs_vel = 0.01*np.abs(vel_diff_x)+0.01*np.abs(vel_diff_y)
+        costs_vel = 0.02*np.abs(vel_diff_x)+0.02*np.abs(vel_diff_y)
         costs_vel = 4*math.sqrt(costs_vel)+costs_vel**2
-        costs_action = (0.1*np.abs(angle[0])+0.1*np.abs(angle[1]))
+        costs_action = (5*np.abs(angle[0])+5*np.abs(angle[1]))
         costs_action = 4*math.sqrt(costs_action)+costs_action**2
         total_costs = costs_pos + costs_vel + costs_action
         self.reward = -total_costs
 
-        # if self.count>=self.max_env_steps:
-        #     done=True
-        # self.count = self.count + 1
-
-        # print("x_ball:",ball_pos_x,"y_ball:",ball_pos_y,"action 1:",action[0],"action 2:",action[1])
-        # return obs, -total_costs, done, angle[0], angle[1], {}
         return obs, -total_costs, done, angle, {}
 
     def render(self, mode='human'):
         return None
         
     def close(self):
-        self.cam.StopGrabbing()
-        cv.destroyAllWindows()
-        self.cam.Close()
         return None
