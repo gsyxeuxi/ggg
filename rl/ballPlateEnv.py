@@ -111,9 +111,10 @@ class Ball_On_Plate_Robot_Env(gym.Env):
         pos_diff_y = obs[5] - obs[1]
         vel_diff_x = obs[6] - obs[2]
         vel_diff_y = obs[7] - obs[3]
+        # angle_x = round(0.000001*((action[0]-self.max_action) * pos_diff_x + (action[1]-self.max_action) * vel_diff_x), 3)
+        # angle_y = round(0.000001*((action[0]-self.max_action) * pos_diff_y + (action[1]-self.max_action) * vel_diff_y), 3)
         angle_x = round((action[0]-self.max_action) * pos_diff_x + (action[1]-self.max_action) * vel_diff_x, 3)
         angle_y = round((action[0]-self.max_action) * pos_diff_y + (action[1]-self.max_action) * vel_diff_y, 3)
-        # print('##', angle_x, angle_y)
         angle = np.clip([angle_x, angle_y], -6, 6)
         done = False
         # ************calculate the rewards************

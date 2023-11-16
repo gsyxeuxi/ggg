@@ -32,7 +32,7 @@ RENDER = False  # render while training
 
 ENV_ID = 'BOP'
 ALG_NAME = 'DDPG'
-TRAIN_EPISODES = 2  # total number of episodes for training
+TRAIN_EPISODES = 100  # total number of episodes for training
 TEST_EPISODES = 10  # total number of episodes for training
 MAX_STEPS = 200  # total number of steps for each episode
 
@@ -40,7 +40,7 @@ LR_A = 0.001  # learning rate for actor
 LR_C = 0.002  # learning rate for critic
 GAMMA = 0.9  # reward discount
 TAU = 0.01  # soft replacement
-MEMORY_CAPACITY = 200  # size of replay buffer
+MEMORY_CAPACITY = 10000  # size of replay buffer
 BATCH_SIZE = 64  # update action batch size
 VAR = 0.05  # control exploration
 
@@ -75,7 +75,7 @@ def PIDPlate(angle_set, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
         channelList = [0, 1]  # The channel must be less than 10
         while(1):
             # angle_value = angle_set[:]
-            print(angle_set[0], angle_set[1])
+            # print(angle_set[0], angle_set[1])
             ADC_Value = ADC.ADS1263_GetAll(channelList)    # get ADC1 value
             for i in channelList:
                 if(ADC_Value[i]>>31 ==1): #received negativ value, but potentiometer should not return negativ value
@@ -186,6 +186,7 @@ class DDPG(object):
             layer = tl.layers.Dense(n_units=64, act=tf.nn.relu, W_init=W_init, b_init=b_init, name='A_l2')(layer)
             layer = tl.layers.Dense(n_units=action_dim, act=tf.nn.tanh, W_init=W_init, b_init=b_init, name='A_a')(layer)
             layer = tl.layers.Lambda(lambda x: action_range * x)(layer)
+            print(layer)
             return tl.models.Model(inputs=input_layer, outputs=layer, name='Actor' + name)
 
         def get_critic(input_state_shape, input_action_shape, name=''):
@@ -221,6 +222,7 @@ class DDPG(object):
 
         self.actor_target = get_actor([None, state_dim], name='_target')
         copy_para(self.actor, self.actor_target)
+        print(self.actor_target)
         self.actor_target.eval()
 
         self.critic_target = get_critic([None, state_dim], [None, action_dim], name='_target')
@@ -250,7 +252,7 @@ class DDPG(object):
         :return: act
         """
         a = self.actor(np.array([s], dtype=np.float32))[0]
-        # print("************",a)
+        print("************",a)
         if greedy:
             return a
         return np.clip(
@@ -365,7 +367,6 @@ if __name__ == '__main__':
             state_, reward, done, angle, _ = env.step(action)
             for i in range(2):
                 angle_set[i] = angle[i]
-            print('angle set is', angle_set[0],angle_set[1])
             agent.store_transition(state, action, reward, state_)
             c_value.append(action)
             if agent.pointer > MEMORY_CAPACITY:
@@ -373,6 +374,7 @@ if __name__ == '__main__':
             state = state_
             episode_reward += reward
             if done:
+                print('done')
                 break
         if episode == 0:
             all_episode_reward.append(episode_reward)
