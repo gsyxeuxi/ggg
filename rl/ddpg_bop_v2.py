@@ -12,7 +12,7 @@ import gym
 import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
-import ballPlateEnv
+import ballPlateEnv_v2
 ##################### limit GPU memory usage  ####################
 gpus = tf.config.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(gpus[0], True)
@@ -42,16 +42,17 @@ GAMMA = 0.9  # reward discount
 TAU = 0.01  # soft replacement
 MEMORY_CAPACITY = 10000  # size of replay buffer
 BATCH_SIZE = 64  # update action batch size
-VAR = 0.05  # control exploration
+VAR = 0.01  # control exploration
+max_action = 0.05 # -0.1 ~ 0
 
 
-def PIDPlate(angle_set, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
+def PIDPlate(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y):
     REF = 5.03 
     angle = [0.0, 0.0]
     angle_diff = [0.0, 0.0]
     angle_diff_sum = [0.0, 0.0]
-    angle_diff_last = [0.0, 0.0]
-    # angle_set = [0.0, 0.0]
+    angle_diff_last = [0.0, 0.0] 
+    angle_set = [0.0, 0.0]
     kp = 0.3
     ki = 0.07
     kd = 2.0
@@ -69,13 +70,15 @@ def PIDPlate(angle_set, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
         # set up ADC
         ADC = ADS1263.ADS1263()
         # choose the rate here (100Hz)
-        if (ADC.ADS1263_init_ADC1('ADS1263_100SPS') == -1):
+        if (ADC.ADS1263_init_ADC1('ADS1263_400SPS') == -1):
             exit()
         ADC.ADS1263_SetMode(0) # 0 is singleChannel, 1 is diffChannel
         channelList = [0, 1]  # The channel must be less than 10
         while(1):
-            # angle_value = angle_set[:]
-            # print(angle_set[0], angle_set[1])
+            angle_set[0] = round((action_set[0]-max_action) * (pos_set_x.value - real_pos_x.value) + (action_set[1]-max_action) * (vel_set_x.value - vel_x.value), 3)
+            angle_set[1] = round((action_set[0]-max_action) * (pos_set_y.value - real_pos_y.value) + (action_set[1]-max_action) * (vel_set_y.value - vel_y.value), 3)
+            angle_set = np.clip([angle_set[0],  angle_set[1]], -6, 6)
+            print("******",angle_set)
             ADC_Value = ADC.ADS1263_GetAll(channelList)    # get ADC1 value
             for i in channelList:
                 if(ADC_Value[i]>>31 ==1): #received negativ value, but potentiometer should not return negativ value
@@ -106,7 +109,7 @@ def PIDPlate(angle_set, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
         ADC.ADS1263_Exit()
         exit()
 
-def DetectBall(angle, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y):
+def DetectBall(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y):
     inver_matrix = coordinate_transform()
     #could move in while loop later
     pos_set_trans = np.round(np.dot(inver_matrix, np.array(([pos_set_x.value],[pos_set_y.value],[1]))))
@@ -186,7 +189,6 @@ class DDPG(object):
             layer = tl.layers.Dense(n_units=64, act=tf.nn.relu, W_init=W_init, b_init=b_init, name='A_l2')(layer)
             layer = tl.layers.Dense(n_units=action_dim, act=tf.nn.tanh, W_init=W_init, b_init=b_init, name='A_a')(layer)
             layer = tl.layers.Lambda(lambda x: action_range * x)(layer)
-            print(layer)
             return tl.models.Model(inputs=input_layer, outputs=layer, name='Actor' + name)
 
         def get_critic(input_state_shape, input_action_shape, name=''):
@@ -252,7 +254,6 @@ class DDPG(object):
         :return: act
         """
         a = self.actor(np.array([s], dtype=np.float32))[0]
-        print("************",a)
         if greedy:
             return a
         return np.clip(
@@ -334,19 +335,19 @@ if __name__ == '__main__':
     pos_set_y = Value('d', float(input("Pos y =")))
     vel_set_x = Value('d', 0.0)
     vel_set_y = Value('d', 0.0)
-    angle_set = Array('d', [0.0, 0.0])
+    action_set = Array('d', [0.0, 0.0])
     real_pos_x = Value('d', 0.0)
     real_pos_y = Value('d', 0.0)
     vel_x = Value('d', 0.0)
     vel_y = Value('d', 0.0)
-    plate_process = Process(target=PIDPlate, args=(angle_set, pos_set_x, pos_set_y, vel_set_x, vel_set_y,))
-    detect_process = Process(target=DetectBall, args=(angle_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y,))
+    plate_process = Process(target=PIDPlate, args=(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y,))
+    detect_process = Process(target=DetectBall, args=(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y,))
     plate_process.start()
     detect_process.start()
     
     #Main process training 
     arr = [real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y]
-    env = ballPlateEnv.Ball_On_Plate_Robot_Env(position=arr)
+    env = ballPlateEnv_v2.Ball_On_Plate_Robot_Env(position=arr)
     env.reset()
     np.random.seed(RANDOM_SEED)
     tf.random.set_seed(RANDOM_SEED)
@@ -363,10 +364,9 @@ if __name__ == '__main__':
         for step in range(MAX_STEPS):
             # Add exploration noise
             action = agent.get_action(state)
-            # print(action)
-            state_, reward, done, angle, _ = env.step(action)
+            state_, reward, done, _ = env.step(action)
             for i in range(2):
-                angle_set[i] = angle[i]
+                action_set[i] = action[i]
             agent.store_transition(state, action, reward, state_)
             c_value.append(action)
             if agent.pointer > MEMORY_CAPACITY:

@@ -25,7 +25,7 @@ class Ball_On_Plate_Robot_Env(gym.Env):
         # self.dt = 0
         self.pos_last_x = 270
         self.pos_last_y = 270
-        self.max_action = 0.05
+        self.max_action = 0.05 # -0.1 ~ 0
         self.inver_matrix = coordinate_transform()
         # *************************************************** Define the Observation Space ***************************************************
         """
@@ -35,8 +35,8 @@ class Ball_On_Plate_Robot_Env(gym.Env):
         high = np.array([1, 1, 1, 1, 1, 1, 1, 1], dtype=np.float32) 
         self.observation_space = gym.spaces.Box(low=low, high=high, shape=(8,), dtype=np.float32)   
         """
-        low = np.array([-382,-382,-1000,-1000,-382,-382,-1000,-1000], dtype=np.float32) #540/1.414=382
-        high = np.array([382,382,1000,1000,382,382,1000,1000], dtype=np.float32)
+        low = np.array([-210,-210,-1000,-1000,-210,-210,-1000,-1000], dtype=np.float32) #540/1.414=382
+        high = np.array([210,210,1000,1000,210,210,1000,1000], dtype=np.float32)
         self.observation_space = gym.spaces.Box(low=low, high=high, shape=(8,), dtype=np.float32)   
 
         # *************************************************** Define the Action Space ***************************************************
@@ -51,22 +51,24 @@ class Ball_On_Plate_Robot_Env(gym.Env):
             writer.writerow(["x_current","y_current","d_x","d_y","c_0","c_1","angle_x","angle_y","reward"])
 
     def _get_obs(self):
-        inver_matrix = coordinate_transform()
+        # inver_matrix = coordinate_transform()
         #could move in while loop later
-        pos_set_trans = np.round(np.dot(inver_matrix, np.array(([self.position[2].value],[self.position[3].value],[1]))))
-        pos_set_trans_x = int(pos_set_trans[0][0]) - 1
-        pos_set_trans_y = int(pos_set_trans[1][0])
+        # pos_set_trans = np.round(np.dot(inver_matrix, np.array(([self.position[2].value],[self.position[3].value],[1]))))
+        # pos_set_trans_x = int(pos_set_trans[0][0]) - 1
+        # pos_set_trans_y = int(pos_set_trans[1][0])
         
         observation = np.array([
             self.position[0].value,   # current pos x
             self.position[1].value,   # current pos y
             self.position[4].value,   # velocity x
             self.position[5].value,   # velocity y
-            pos_set_trans_x,   # set pos x
-            pos_set_trans_y,   # set pos y
+            # pos_set_trans_x,   # set pos x
+            # pos_set_trans_y,   # set pos y
+            self.position[2].value,   # set pos x
+            self.position[3].value,    # set pos y
             self.position[6].value,   # set vel x
             self.position[7].value    # set vel y
-            ])
+            ]) / 100
         return observation
 
     # def get_logs(self):
@@ -111,23 +113,22 @@ class Ball_On_Plate_Robot_Env(gym.Env):
         pos_diff_y = obs[5] - obs[1]
         vel_diff_x = obs[6] - obs[2]
         vel_diff_y = obs[7] - obs[3]
-        # angle_x = round(0.000001*((action[0]-self.max_action) * pos_diff_x + (action[1]-self.max_action) * vel_diff_x), 3)
-        # angle_y = round(0.000001*((action[0]-self.max_action) * pos_diff_y + (action[1]-self.max_action) * vel_diff_y), 3)
-        angle_x = round((action[0]-self.max_action) * pos_diff_x + (action[1]-self.max_action) * vel_diff_x, 3)
-        angle_y = round((action[0]-self.max_action) * pos_diff_y + (action[1]-self.max_action) * vel_diff_y, 3)
+        angle_x = round(100*((action[0]-self.max_action) * pos_diff_x + (action[1]-self.max_action) * vel_diff_x), 3)
+        angle_y = round(100*((action[0]-self.max_action) * pos_diff_y + (action[1]-self.max_action) * vel_diff_y), 3)
         angle = np.clip([angle_x, angle_y], -6, 6)
         done = False
         # ************calculate the rewards************
-        costs_pos = 0.1*np.abs(pos_diff_x)+0.1*np.abs(pos_diff_y)
+        costs_pos = np.abs(pos_diff_x)+np.abs(pos_diff_y)
         costs_pos = 4*math.sqrt(costs_pos)+costs_pos**2
-        costs_vel = 0.02*np.abs(vel_diff_x)+0.02*np.abs(vel_diff_y)
+        costs_vel = np.abs(vel_diff_x)+np.abs(vel_diff_y)
         costs_vel = 4*math.sqrt(costs_vel)+costs_vel**2
-        costs_action = (5*np.abs(angle[0])+5*np.abs(angle[1]))
+        costs_action = 0.1*(np.abs(angle[0])+np.abs(angle[1]))
         costs_action = 4*math.sqrt(costs_action)+costs_action**2
+        print(costs_pos, costs_vel, costs_action)
         total_costs = costs_pos + costs_vel + costs_action
         self.reward = -total_costs
 
-        return obs, -total_costs, done, angle, {}
+        return obs, -total_costs, done, {}
 
     def render(self, mode='human'):
         return None
