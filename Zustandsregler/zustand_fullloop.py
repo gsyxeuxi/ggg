@@ -44,6 +44,7 @@ def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
         previous_time = time.time()
 
         while(1):
+            t = time.time()
             angle_set[0] = angle_1.value
             angle_set[1] = angle_2.value
             # print('angle1 =', angle_set[0])
@@ -75,6 +76,7 @@ def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
                 else:
                     p2.ChangeDutyCycle(val[i])
                     # p2.ChangeDutyCycle(100)
+                print(time.time() - t)
             # for i in channelList:
             #     print("\33[2A")
             # time.sleep(0.01)
@@ -106,10 +108,10 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
     pos_last_x = 0
     pos_last_y = 0
     vel_diff = np.zeros(2)
-    c0 = -0.03
-    c1 = -0.009
-    # c0 = -0.5
-    # c1 = 0
+    # c0 = -0.03
+    # c1 = -0.009
+    c0 = -0.1
+    c1 = -0.1
     latency = 1000/60
     
     tlf = py.TlFactory.GetInstance()

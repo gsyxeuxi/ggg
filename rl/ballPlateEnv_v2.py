@@ -96,7 +96,7 @@ class Ball_On_Plate_Robot_Env(gym.Env):
     def step(self, action):
         self.T_current = time.perf_counter()
         self.dt = self.T_current-self.T_last
-        # print("************",self.dt,"*************")        
+        # print("************",self.dt,"*************")  
         self.T_last = self.T_current
         # ************get observation space:************
         obs = self._get_obs()
@@ -118,13 +118,14 @@ class Ball_On_Plate_Robot_Env(gym.Env):
         angle = np.clip([angle_x, angle_y], -6, 6)
         done = False
         # ************calculate the rewards************
-        costs_pos = np.abs(pos_diff_x)+np.abs(pos_diff_y)
-        costs_pos = 4*math.sqrt(costs_pos)+costs_pos**2
+        costs_pos = 4*(np.abs(pos_diff_x)+np.abs(pos_diff_y))
         costs_vel = np.abs(vel_diff_x)+np.abs(vel_diff_y)
+        costs_action = 0.4*(np.abs(angle[0])+np.abs(angle[1]))
+
+        costs_pos = 4*math.sqrt(costs_pos)+costs_pos**2
         costs_vel = 4*math.sqrt(costs_vel)+costs_vel**2
-        costs_action = 0.1*(np.abs(angle[0])+np.abs(angle[1]))
         costs_action = 4*math.sqrt(costs_action)+costs_action**2
-        print(costs_pos, costs_vel, costs_action)
+        # print(costs_pos, costs_vel, costs_action)
         total_costs = costs_pos + costs_vel + costs_action
         self.reward = -total_costs
 

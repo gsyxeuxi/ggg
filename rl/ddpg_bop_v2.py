@@ -42,7 +42,7 @@ GAMMA = 0.9  # reward discount
 TAU = 0.01  # soft replacement
 MEMORY_CAPACITY = 10000  # size of replay buffer
 BATCH_SIZE = 64  # update action batch size
-VAR = 0.01  # control exploration
+VAR = 0.005  # control exploration
 max_action = 0.05 # -0.1 ~ 0
 
 
@@ -70,20 +70,27 @@ def PIDPlate(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, ve
         # set up ADC
         ADC = ADS1263.ADS1263()
         # choose the rate here (100Hz)
-        if (ADC.ADS1263_init_ADC1('ADS1263_400SPS') == -1):
+        if (ADC.ADS1263_init_ADC1('ADS1263_100SPS') == -1):
             exit()
         ADC.ADS1263_SetMode(0) # 0 is singleChannel, 1 is diffChannel
         channelList = [0, 1]  # The channel must be less than 10
         while(1):
+            # print(action_set[0], action_set[1])
+            # action_set[0] = -0.05
+            # action_set[1] = -0.05
             angle_set[0] = round((action_set[0]-max_action) * (pos_set_x.value - real_pos_x.value) + (action_set[1]-max_action) * (vel_set_x.value - vel_x.value), 3)
             angle_set[1] = round((action_set[0]-max_action) * (pos_set_y.value - real_pos_y.value) + (action_set[1]-max_action) * (vel_set_y.value - vel_y.value), 3)
             angle_set = np.clip([angle_set[0],  angle_set[1]], -6, 6)
-            print("******",angle_set)
+            # print("******",angle_set)
             ADC_Value = ADC.ADS1263_GetAll(channelList)    # get ADC1 value
             for i in channelList:
                 if(ADC_Value[i]>>31 ==1): #received negativ value, but potentiometer should not return negativ value
                     print('negativ potentiometer value received')
                     exit()                  # p2.ChangeDutyCycle(100) 
+                else:       #potentiometer received positiv value
+                    #change receive data in V to angle in °
+                    receive_data = ADC_Value[i] * REF / 0x7fffffff
+                    angle[i] = float('%.2f' %((receive_data - 2.51) * 2.91))   # 32bit
                     # print('angle', str(i+1), ' = ', angle[i], '°', sep="")
                 angle_diff[i] = angle_set[i] - angle[i]
                 angle_diff_sum[i] += angle_diff[i]
@@ -93,7 +100,6 @@ def PIDPlate(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, ve
                 if val[i] < 0:
                     val[i] = 0
                 angle_diff_last[i] = angle_diff[i]
-                # print(val[i])
                 if i == 0:
                     p1.ChangeDutyCycle(val[i])
                 else:
@@ -254,6 +260,7 @@ class DDPG(object):
         :return: act
         """
         a = self.actor(np.array([s], dtype=np.float32))[0]
+        # print(a)
         if greedy:
             return a
         return np.clip(
@@ -368,8 +375,9 @@ if __name__ == '__main__':
             for i in range(2):
                 action_set[i] = action[i]
             agent.store_transition(state, action, reward, state_)
-            c_value.append(action)
+            c_value.append([action_set[0],action_set[1]])
             if agent.pointer > MEMORY_CAPACITY:
+                print('action is:', action_set[0], action_set[1])
                 agent.learn()
             state = state_
             episode_reward += reward
@@ -394,8 +402,8 @@ if __name__ == '__main__':
         os.makedirs('image')
     plt.savefig(os.path.join('image', '_'.join([ALG_NAME, ENV_ID])))
     plt.figure() #create new figure
-    plt.plot(c_value[:][0], label='c0')
-    plt.plot(c_value[:][1], label='c1')
+    plt.plot([i[0] for i in c_value], label='c0')
+    plt.plot([i[1] for i in c_value], label='c1')
     plt.xlabel('Timestep')
     plt.ylabel('Control parameters')
     plt.legend()
