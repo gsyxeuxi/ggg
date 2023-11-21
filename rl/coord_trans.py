@@ -25,7 +25,6 @@ def coordinate_transform(x1=156, y1=21, x2=396, y2=24, x0=268, y0=260):
     transform_matrix = np.dot(np.dot(translation_matrix, rotation_matrix), rotation_matrix_beta)
     # inverse matrix(convert to mm)
     inverse_matrix = np.linalg.inv(transform_matrix) * 400 / 540
-
     
-    return inverse_matrix
+    return inverse_matrix, transform_matrix
 

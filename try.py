@@ -3,14 +3,59 @@ import numpy as np
 import gym
 import matplotlib.pyplot as plt
 import os
+import time
 
 
-c_value = [[0.05000000074505806, 0.01832855098211984], [0.012057140000813458, -0.005343839556642265], [0.01902503690875413, -0.011486689930262826], [0.05000000074505806, 0.02093879279583462], [0.04711503545254311, 0.023497975422923083], [0.0419345835373157, -0.0029723101440475557], [0.026369789444252646, 0.004906193244751508], [0.009343000450212115, -0.013199550824088226], [0.012055983868966553, -0.004551554355410151], [-0.0028494474692443636, -0.036510678610623924], [-0.0045635584060567495, -0.003801313581973156], [0.005447491082971835, -0.007012460436661885], [0.003976385912971669, -0.015205216587658336], [-0.02869725960725995, -0.03540744995318717]]
+def trajectory(): 
+    #l: Half of the length of the diagonal of the square
+    #p: Time peroide
+    l = 15
+    p = 16
+    a = l*np.sqrt(2)/(p/8)**2 #acceleration
+    while True:
+        t = time.time() % p  # Ensure that the trajectory repeats every p seconds
+        if 0 <= t < p/8:
+            pos_set_x = l - 0.5 * a * t**2/np.sqrt(2)
+            pos_set_y = 0.5 * a * t**2/np.sqrt(2)
+            vel_set_y = - a * t * 2/np.sqrt(2)
+            v_y = a * t * 2/np.sqrt(2)
+        elif p/8 <= t < p/4:
+            pos_set_x = 0.5 * a * (p/4-t)**2/np.sqrt(2)
+            pos_set_y = l - 0.5 * a * (p/4-t)**2/np.sqrt(2)
+            vel_set_x = - a * (p/4-t) * 2/np.sqrt(2)
+            vel_set_y = a * (p/4-t) * 2/np.sqrt(2)
+        elif p/4 <= t < 3*p/8:
+            pos_set_x = -0.5 * a * (t-p/4)**2/np.sqrt(2)
+            pos_set_y = l - 0.5 * a * (t-p/4)**2/np.sqrt(2)
+            vel_set_x = - a * (t-p/4) * 2/np.sqrt(2)
+            vel_set_y= - a * (t-p/4) * 2/np.sqrt(2)
+        elif 3*p/8 <= t < p/2:
+            pos_set_x = -l + 0.5 * a * (p/2-t)**2/np.sqrt(2)
+            pos_set_y = 0.5 * a * (p/2-t)**2/np.sqrt(2)
+            vel_set_x = - a * (p/2-t) * 2/np.sqrt(2)
+            vel_set_y = - a * (p/2-t) * 2/np.sqrt(2)
+        elif p/2 <= t < 5*p/8:
+            pos_set_x = -l + 0.5 * a * (t-p/2)**2/np.sqrt(2)
+            pos_set_y = -0.5 * a * (t-p/2)**2/np.sqrt(2)
+            vel_set_x = a * (t-p/2) * 2/np.sqrt(2)
+            vel_set_y = -a * (t-p/2) * 2/np.sqrt(2)
+        elif 5*p/8 <= t < 3*p/4:
+            pos_set_x = -0.5 * a * (t-3*p/4)**2/np.sqrt(2)
+            pos_set_y = -l + 0.5 * a * (t-3*p/4)**2/np.sqrt(2)
+            vel_set_x = a * (3*p/4-t) * 2/np.sqrt(2)
+            vel_set_y = -a * (3*p/4-t) * 2/np.sqrt(2)
+        elif 3*p/4 <= t < 7*p/8:
+            pos_set_x = 0.5 * a * (t-3*p/4)**2/np.sqrt(2)
+            pos_set_y = -l + 0.5 * a * (t-3*p/4)**2/np.sqrt(2)
+            vel_set_x = a * (t-3*p/4) * 2/np.sqrt(2)
+            vel_set_y = a * (t-3*p/4) * 2/np.sqrt(2)
+        else:
+            pos_set_x = l - 0.5 * a * (t-p)**2/np.sqrt(2)
+            pos_set_y = -0.5 * a * (t-p)**2/np.sqrt(2)
+            vel_set_x = a * (p-t) * 2/np.sqrt(2)
+            vel_set_y = a * (p-t) * 2/np.sqrt(2)
 
-plt.figure() #create new figure
-plt.plot([i[0] for i in c_value], label='c0')
-plt.plot([i[1] for i in c_value], label='c1')
-plt.xlabel('Timestep')
-plt.ylabel('Control parameters')
-plt.legend()
-plt.savefig(os.path.join('image', '_'.join(["1"])))
+        print(pos_set_x, pos_set_y, vel_set_x, vel_set_y)
+
+while True:
+    trajectory()

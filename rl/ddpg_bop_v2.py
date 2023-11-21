@@ -43,7 +43,7 @@ TAU = 0.01  # soft replacement
 MEMORY_CAPACITY = 10000  # size of replay buffer
 BATCH_SIZE = 64  # update action batch size
 VAR = 0.005  # control exploration
-max_action = 0.05 # -0.1 ~ 0
+max_action = 0.025 # -0.05 ~ 0
 
 
 def PIDPlate(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y):
@@ -116,14 +116,10 @@ def PIDPlate(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, ve
         exit()
 
 def DetectBall(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y):
-    inver_matrix = coordinate_transform()
-    #could move in while loop later
-    pos_set_trans = np.round(np.dot(inver_matrix, np.array(([pos_set_x.value],[pos_set_y.value],[1]))))
-    pos_set_trans_x = int(pos_set_trans[0][0]) - 1
-    pos_set_trans_y = int(pos_set_trans[1][0])
-
-    pos_last_x = 270
-    pos_last_y = 270
+    inver_matrix, transform_matrix = coordinate_transform()
+    # could move in while loop later
+    pos_last_x = 0
+    pos_last_y = 0
     latency = 1000/60
     tlf = py.TlFactory.GetInstance()
     device = tlf.CreateFirstDevice()
@@ -140,9 +136,13 @@ def DetectBall(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, 
         grabResult = cam.RetrieveResult(5000, py.TimeoutHandling_ThrowException)
         # print(str('Number of skipped images:'), grabResult.GetNumberOfSkippedImages())
         if grabResult.GrabSucceeded():
+            pos_set_trans = np.round(np.dot(transform_matrix, np.array(([pos_set_x.value*540/400],[pos_set_y.value*540/400],[1]))))
+            pos_set_trans_x = int(pos_set_trans[0][0])
+            pos_set_trans_y = int(pos_set_trans[1][0])
             img = grabResult.Array
             img = cv.GaussianBlur(img,(3,3),0)
             dectect_back = detect_circles_cpu(img, cv.HOUGH_GRADIENT, dp=1, min_dist=50, param1=100, param2=36, min_Radius=26, max_Radius=32)
+            # img= cv.drawMarker(img, (int(pos_set_x.value), int(pos_set_y.value)), (0, 0, 255), markerType=1)
             img= cv.drawMarker(img, (int(pos_set_trans_x), int(pos_set_trans_y)), (0, 0, 255), markerType=1)
             x = dectect_back[1][0]
             y = dectect_back[1][1]
@@ -337,9 +337,59 @@ class DDPG(object):
         tl.files.load_hdf5_to_weights_in_order(os.path.join(path, 'critic.hdf5'), self.critic)
         tl.files.load_hdf5_to_weights_in_order(os.path.join(path, 'critic_target.hdf5'), self.critic_target)
 
+def trajectory(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y,): 
+    #l: Half of the length of the diagonal of the square
+    #p: Time peroide
+    l = 100
+    p = 16
+    a = l*np.sqrt(2)/(p/8)**2 #acceleration
+    while True:
+        t = time.time() % p  # Ensure that the trajectory repeats every p seconds
+        if 0 <= t < p/8:
+            pos_set_x.value = l - 0.5 * a * t**2/np.sqrt(2)
+            pos_set_y.value = 0.5 * a * t**2/np.sqrt(2)
+            vel_set_x.value = - a * t * 2/np.sqrt(2)
+            vel_set_y.value = a * t * 2/np.sqrt(2)
+        elif p/8 <= t < p/4:
+            pos_set_x.value = 0.5 * a * (p/4-t)**2/np.sqrt(2)
+            pos_set_y.value = l - 0.5 * a * (p/4-t)**2/np.sqrt(2)
+            vel_set_x.value = - a * (p/4-t) * 2/np.sqrt(2)
+            vel_set_y.value = a * (p/4-t) * 2/np.sqrt(2)
+        elif p/4 <= t < 3*p/8:
+            pos_set_x.value = -0.5 * a * (t-p/4)**2/np.sqrt(2)
+            pos_set_y.value = l - 0.5 * a * (t-p/4)**2/np.sqrt(2)
+            vel_set_x.value = - a * (t-p/4) * 2/np.sqrt(2)
+            vel_set_y.value = - a * (t-p/4) * 2/np.sqrt(2)
+        elif 3*p/8 <= t < p/2:
+            pos_set_x.value = -l + 0.5 * a * (p/2-t)**2/np.sqrt(2)
+            pos_set_y.value = 0.5 * a * (p/2-t)**2/np.sqrt(2)
+            vel_set_x.value = - a * (p/2-t) * 2/np.sqrt(2)
+            vel_set_y.value = - a * (p/2-t) * 2/np.sqrt(2)
+        elif p/2 <= t < 5*p/8:
+            pos_set_x.value = -l + 0.5 * a * (t-p/2)**2/np.sqrt(2)
+            pos_set_y.value = -0.5 * a * (t-p/2)**2/np.sqrt(2)
+            vel_set_x.value = a * (t-p/2) * 2/np.sqrt(2)
+            vel_set_y.value = -a * (t-p/2) * 2/np.sqrt(2)
+        elif 5*p/8 <= t < 3*p/4:
+            pos_set_x.value = -0.5 * a * (t-3*p/4)**2/np.sqrt(2)
+            pos_set_y.value = -l + 0.5 * a * (t-3*p/4)**2/np.sqrt(2)
+            vel_set_x.value = a * (3*p/4-t) * 2/np.sqrt(2)
+            vel_set_y.value = -a * (3*p/4-t) * 2/np.sqrt(2)
+        elif 3*p/4 <= t < 7*p/8:
+            pos_set_x.value = 0.5 * a * (t-3*p/4)**2/np.sqrt(2)
+            pos_set_y.value = -l + 0.5 * a * (t-3*p/4)**2/np.sqrt(2)
+            vel_set_x.value = a * (t-3*p/4) * 2/np.sqrt(2)
+            vel_set_y.value = a * (t-3*p/4) * 2/np.sqrt(2)
+        else:
+            pos_set_x.value = l - 0.5 * a * (t-p)**2/np.sqrt(2)
+            pos_set_y.value = -0.5 * a * (t-p)**2/np.sqrt(2)
+            vel_set_x.value = a * (p-t) * 2/np.sqrt(2)
+            vel_set_y.value = a * (p-t) * 2/np.sqrt(2)
+
+
 if __name__ == '__main__':
-    pos_set_x = Value('d', float(input("Pos x =")))
-    pos_set_y = Value('d', float(input("Pos y =")))
+    pos_set_x = Value('d', 0.0)
+    pos_set_y = Value('d', 0.0)
     vel_set_x = Value('d', 0.0)
     vel_set_y = Value('d', 0.0)
     action_set = Array('d', [0.0, 0.0])
@@ -349,8 +399,10 @@ if __name__ == '__main__':
     vel_y = Value('d', 0.0)
     plate_process = Process(target=PIDPlate, args=(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y,))
     detect_process = Process(target=DetectBall, args=(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y,))
+    trajectory_process = Process(target=trajectory, args=(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y,))
     plate_process.start()
     detect_process.start()
+    trajectory_process.start()
     
     #Main process training 
     arr = [real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y]
@@ -371,6 +423,7 @@ if __name__ == '__main__':
         for step in range(MAX_STEPS):
             # Add exploration noise
             action = agent.get_action(state)
+            print(action)
             state_, reward, done, _ = env.step(action)
             for i in range(2):
                 action_set[i] = action[i]
@@ -411,3 +464,4 @@ if __name__ == '__main__':
     print('training finished, please press "ctrl+c"')
     plate_process.join()
     detect_process.join()
+    trajectory_process.join()

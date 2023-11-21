@@ -76,7 +76,7 @@ def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
                 else:
                     p2.ChangeDutyCycle(val[i])
                     # p2.ChangeDutyCycle(100)
-                print(time.time() - t)
+                # print(time.time() - t)
             # for i in channelList:
             #     print("\33[2A")
             # time.sleep(0.01)
@@ -99,19 +99,19 @@ def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
 
 def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
     inver_matrix = coordinate_transform()
-    pos_set_trans = np.round(np.dot(inver_matrix, np.array(([pos_set_x.value],[pos_set_y.value],[1]))))
-    pos_set_trans_x = int(pos_set_trans[0][0]) - 1
-    pos_set_trans_y = int(pos_set_trans[1][0])
+    # pos_set_trans = np.round(np.dot(inver_matrix, np.array(([pos_set_x.value],[pos_set_y.value],[1]))))
+    # pos_set_trans_x = int(pos_set_trans[0][0]) - 1
+    # pos_set_trans_y = int(pos_set_trans[1][0])
     angle = [0.0, 0.0]
     pos_diff = [0.0, 0.0]
     pos_diff_last = [0.0, 0.0]
     pos_last_x = 0
     pos_last_y = 0
     vel_diff = np.zeros(2)
-    # c0 = -0.03
-    # c1 = -0.009
-    c0 = -0.1
-    c1 = -0.1
+    c0 = -0.03
+    c1 = -0.009
+    # c0 = -0.1
+    # c1 = -0.1
     latency = 1000/60
     
     tlf = py.TlFactory.GetInstance()
@@ -139,12 +139,12 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
             real_pos = np.round(np.dot(inver_matrix, np.array(([x],[y],[1]))))
             real_pos_x = real_pos[0][0] - 1
             real_pos_y = real_pos[1][0]
-            pos_diff[0] = pos_set_trans_x - real_pos_x
-            pos_diff[1] = pos_set_trans_y - real_pos_y
+            pos_diff[0] = pos_set_x.value - real_pos_x
+            pos_diff[1] = pos_set_y.value - real_pos_y
             vel_x = np.round((real_pos_x - pos_last_x) * 1000 / latency, 3) #dt = 1/60
             vel_y = np.round((real_pos_y - pos_last_y) * 1000 / latency, 3)
-            # print('velx is:', vel_x)
-            # print('vely is:', vel_y)
+            print('velx is:', vel_x)
+            print('velset_x is:', vel_set_x.value)
             vel_diff[0] = vel_set_x.value - vel_x
             vel_diff[1] = vel_set_y.value - vel_y
             # print(real_pos_x, real_pos_y)
@@ -155,10 +155,9 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
                 if angle[i] < -6:
                     angle[i] = -6
                 # print('angle', str(i+1), ' = ', angle[i], '°', sep="")
-                print(pos_set_trans_x, real_pos_x)
                 pos_diff_last[i] = pos_diff[i]
-            for i in range(2):
-                print("\33[2A")
+            # for i in range(2):
+            #     print("\33[2A")
             
             pos_last_x = real_pos_x
             pos_last_y = real_pos_y
@@ -181,20 +180,76 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
     cv.destroyAllWindows()
     cam.Close()
 
+def trajectory(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y): 
+    #l: Half of the length of the diagonal of the square
+    #p: Time peroide
+    print('????????')
+    l = 150
+    p = 16
+    a = l*np.sqrt(2)/(p/8)**2 #acceleration
+    while True:
+        t = time.time() % p  # Ensure that the trajectory repeats every p seconds
+        if 0 <= t < p/8:
+            pos_set_x.value = l - 0.5 * a * t**2/np.sqrt(2)
+            pos_set_y.value = 0.5 * a * t**2/np.sqrt(2)
+            vel_set_x.value = - a * t * 2/np.sqrt(2)
+            vel_set_y.value = a * t * 2/np.sqrt(2)
+        elif p/8 <= t < p/4:
+            pos_set_x.value = 0.5 * a * (p/4-t)**2/np.sqrt(2)
+            pos_set_y.value = l - 0.5 * a * (p/4-t)**2/np.sqrt(2)
+            vel_set_x.value = - a * (p/4-t) * 2/np.sqrt(2)
+            vel_set_y.value = a * (p/4-t) * 2/np.sqrt(2)
+        elif p/4 <= t < 3*p/8:
+            pos_set_x.value = -0.5 * a * (t-p/4)**2/np.sqrt(2)
+            pos_set_y.value = l - 0.5 * a * (t-p/4)**2/np.sqrt(2)
+            vel_set_x.value = - a * (t-p/4) * 2/np.sqrt(2)
+            vel_set_y.value = - a * (t-p/4) * 2/np.sqrt(2)
+        elif 3*p/8 <= t < p/2:
+            pos_set_x.value = -l + 0.5 * a * (p/2-t)**2/np.sqrt(2)
+            pos_set_y.value = 0.5 * a * (p/2-t)**2/np.sqrt(2)
+            vel_set_x.value = - a * (p/2-t) * 2/np.sqrt(2)
+            vel_set_y.value = - a * (p/2-t) * 2/np.sqrt(2)
+        elif p/2 <= t < 5*p/8:
+            pos_set_x.value = -l + 0.5 * a * (t-p/2)**2/np.sqrt(2)
+            pos_set_y.value = -0.5 * a * (t-p/2)**2/np.sqrt(2)
+            vel_set_x.value = a * (t-p/2) * 2/np.sqrt(2)
+            vel_set_y.value = -a * (t-p/2) * 2/np.sqrt(2)
+        elif 5*p/8 <= t < 3*p/4:
+            pos_set_x.value = -0.5 * a * (t-3*p/4)**2/np.sqrt(2)
+            pos_set_y.value = -l + 0.5 * a * (t-3*p/4)**2/np.sqrt(2)
+            vel_set_x.value = a * (3*p/4-t) * 2/np.sqrt(2)
+            vel_set_y.value = -a * (3*p/4-t) * 2/np.sqrt(2)
+        elif 3*p/4 <= t < 7*p/8:
+            pos_set_x.value = 0.5 * a * (t-3*p/4)**2/np.sqrt(2)
+            pos_set_y.value = -l + 0.5 * a * (t-3*p/4)**2/np.sqrt(2)
+            vel_set_x.value = a * (t-3*p/4) * 2/np.sqrt(2)
+            vel_set_y.value = a * (t-3*p/4) * 2/np.sqrt(2)
+        else:
+            pos_set_x.value = l - 0.5 * a * (t-p)**2/np.sqrt(2)
+            pos_set_y.value = -0.5 * a * (t-p)**2/np.sqrt(2)
+            vel_set_x.value = a * (p-t) * 2/np.sqrt(2)
+            vel_set_y.value = a * (p-t) * 2/np.sqrt(2)
+
+        # print(pos_set_x, pos_set_y, vel_set_x, vel_set_y)
+        # return pos_set_x, pos_set_y, vel_set_x, vel_set_y
+
 
 def main():
-    pos_set_x = Value('d', float(input("Pos x =")))
-    pos_set_y = Value('d', float(input("Pos y =")))
+    pos_set_x = Value('d', 0)
+    pos_set_y = Value('d', 0)
     vel_set_x = Value('d', 0.0)
     vel_set_y = Value('d', 0.0)
     angle_1 = Value('d', 0.0)
     angle_2 = Value('d', 0.0)
     ball_process = Process(target=PIDBall, args=(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y,))
     plate_process = Process(target=PIDPlate, args=(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y,))
+    trajectory_process = Process(target=trajectory, args=(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y,))
+    trajectory_process.start()
     ball_process.start()
     plate_process.start()
     ball_process.join()
     plate_process.join()
+    trajectory_process.join()
 
 
 if __name__ == '__main__':
