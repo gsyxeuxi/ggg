@@ -423,10 +423,15 @@ if __name__ == '__main__':
         for step in range(MAX_STEPS):
             # Add exploration noise
             action = agent.get_action(state)
-            print(action)
-            state_, reward, done, _ = env.step(action)
             for i in range(2):
                 action_set[i] = action[i]
+            time.sleep(1)
+            t = time.time()
+            # print(action)
+            state_, reward, done, _ = env.step(action)
+            print(state-state_)
+            # print(state_)
+            
             agent.store_transition(state, action, reward, state_)
             c_value.append([action_set[0],action_set[1]])
             if agent.pointer > MEMORY_CAPACITY:
