@@ -10,6 +10,7 @@ from multiprocessing.sharedctypes import Array, Value
 import math
 import csv
 import time
+import datetime
 import gym
 import numpy as np
 import matplotlib.pyplot as plt
@@ -48,7 +49,7 @@ RENDER = False  # render while training
 
 # RL training
 ALG_NAME = 'TD3'
-TRAIN_EPISODES = 100  # total number of episodes for training
+TRAIN_EPISODES = 4  # total number of episodes for training
 TEST_EPISODES = 10  # total number of episodes for training
 MAX_STEPS = 200  # maximum number of steps for one episode
 BATCH_SIZE = 128  # update batch size
@@ -68,7 +69,7 @@ MAX_ACTION = 1
 ACTION_FACT = 0.025 # -0.05 ~ 0
 
 
-def PIDPlate(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y):
+def PIDPlate(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y, IS_RESET):
     REF = 5.03 
     angle = [0.0, 0.0]
     angle_diff = [0.0, 0.0]
@@ -100,9 +101,16 @@ def PIDPlate(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, ve
             # print(action_set[0], action_set[1])
             # action_set[0] = -0.05
             # action_set[1] = -0.05
-            angle_set[0] = round(ACTION_FACT*((action_set[0]-MAX_ACTION) * (pos_set_x.value - real_pos_x.value) + (action_set[1]-MAX_ACTION) * (vel_set_x.value - vel_x.value)), 3)
-            angle_set[1] = round(ACTION_FACT*((action_set[0]-MAX_ACTION) * (pos_set_y.value - real_pos_y.value) + (action_set[1]-MAX_ACTION) * (vel_set_y.value - vel_y.value)), 3)
-            angle_set = np.clip([angle_set[0],  angle_set[1]], -6, 6)
+            action_set = np.clip([action_set[0], action_set[1]], -1, 1)
+            for i in range(2):
+                if abs(action_set[i]) > 1:
+                    print(action_set[i])
+            if IS_RESET.value:
+                angle_set = 6*(np.random.rand(2)-0.5)
+            else:
+                angle_set[0] = round(ACTION_FACT*((action_set[0]-MAX_ACTION) * (pos_set_x.value - real_pos_x.value) + (action_set[1]-MAX_ACTION) * (vel_set_x.value - vel_x.value)), 3)
+                angle_set[1] = round(ACTION_FACT*((action_set[0]-MAX_ACTION) * (pos_set_y.value - real_pos_y.value) + (action_set[1]-MAX_ACTION) * (vel_set_y.value - vel_y.value)), 3)
+                angle_set = np.clip([angle_set[0],  angle_set[1]], -6, 6)
             # print("******",angle_set)
             ADC_Value = ADC.ADS1263_GetAll(channelList)    # get ADC1 value
             for i in channelList:
@@ -346,6 +354,7 @@ class PolicyNetwork(Model):
         # add noise
         normal = Normal(0, 1)
         noise = normal.sample(action.shape) * explore_noise_scale
+        print(noise)
         action += noise
         return action.numpy()
 
@@ -392,6 +401,12 @@ class TD3:
         self.q_optimizer1 = tf.optimizers.Adam(q_lr)
         self.q_optimizer2 = tf.optimizers.Adam(q_lr)
         self.policy_optimizer = tf.optimizers.Adam(policy_lr)
+        # create tensorboard logs
+        self.current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        if not os.path.exists('logs/td3/'):
+            os.makedirs('logs/td3/')
+        self.log_dir = 'logs/td3/' + self.current_time
+        self.summary_writer = tf.summary.create_file_writer(self.log_dir)
 
     def target_ini(self, net, target_net):
         """ hard-copy update for initializing target networks """
@@ -432,12 +447,16 @@ class TD3:
         with tf.GradientTape() as q1_tape:
             predicted_q_value1 = self.q_net1(q_input)
             q_value_loss1 = tf.reduce_mean(tf.square(predicted_q_value1 - target_q_value))
+            with self.summary_writer.as_default():
+                    tf.summary.scalar('q_value_loss1', q_value_loss1, step=self.update_cnt)
         q1_grad = q1_tape.gradient(q_value_loss1, self.q_net1.trainable_weights)
         self.q_optimizer1.apply_gradients(zip(q1_grad, self.q_net1.trainable_weights))
 
         with tf.GradientTape() as q2_tape:
             predicted_q_value2 = self.q_net2(q_input)
             q_value_loss2 = tf.reduce_mean(tf.square(predicted_q_value2 - target_q_value))
+            with self.summary_writer.as_default():
+                    tf.summary.scalar('q_value_loss2', q_value_loss2, step=self.update_cnt)
         q2_grad = q2_tape.gradient(q_value_loss2, self.q_net2.trainable_weights)
         self.q_optimizer2.apply_gradients(zip(q2_grad, self.q_net2.trainable_weights))
 
@@ -453,6 +472,8 @@ class TD3:
                 """ implementation 2 """
                 predicted_new_q_value = self.q_net1(new_q_input)
                 policy_loss = -tf.reduce_mean(predicted_new_q_value)
+                with self.summary_writer.as_default():
+                    tf.summary.scalar('policy loss', policy_loss, step=self.update_cnt)
             p_grad = p_tape.gradient(policy_loss, self.policy_net.trainable_weights)
             self.policy_optimizer.apply_gradients(zip(p_grad, self.policy_net.trainable_weights))
 
@@ -483,8 +504,6 @@ class TD3:
         tl.files.load_and_assign_npz(extend_path('model_policy_net.npz'), self.policy_net)
         tl.files.load_and_assign_npz(extend_path('model_target_policy_net.npz'), self.target_policy_net)
 
-
-
 if __name__ == '__main__':
     pos_set_x = Value('d', 0.0)
     pos_set_y = Value('d', 0.0)
@@ -495,12 +514,13 @@ if __name__ == '__main__':
     real_pos_y = Value('d', 0.0)
     vel_x = Value('d', 0.0)
     vel_y = Value('d', 0.0)
-    plate_process = Process(target=PIDPlate, args=(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y,))
+    IS_RESET = Value('b', False)
+    plate_process = Process(target=PIDPlate, args=(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y, IS_RESET,))
     detect_process = Process(target=DetectBall, args=(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y,))
-    trajectory_process = Process(target=trajectory, args=(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y,))
+    # trajectory_process = Process(target=trajectory, args=(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y,))
     plate_process.start()
     detect_process.start()
-    trajectory_process.start()
+    # trajectory_process.start()
     
     #Main process training 
     arr = [real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y]
@@ -535,20 +555,26 @@ if __name__ == '__main__':
 
         for episode in range(TRAIN_EPISODES):
             # state = env.reset().astype(np.float32)
-            state, _= env.reset()
+            print("********************")
+            IS_RESET.value = True
+            state, _ = env.reset()
+            IS_RESET.value = False
             state = state.astype(np.float32)
             episode_reward = 0
 
             for step in range(MAX_STEPS):
-                if RENDER:
-                    env.render()
                 if frame_idx > EXPLORE_STEPS:
                     action = agent.policy_net.get_action(state, EXPLORE_NOISE_SCALE)
                 else:
                     action = agent.policy_net.sample_action()
-                print(action)
+                # print(action)
                 for i in range(2):
                     action_set[i] = action[i]
+
+                if len(replay_buffer) > BATCH_SIZE:
+                    for i in range(UPDATE_ITR):
+                        agent.update(BATCH_SIZE, EVAL_NOISE_SCALE, REWARD_SCALE)
+
                 next_state, reward, done, _ = env.step(action)
                 next_state = next_state.astype(np.float32)
                 done = 1 if done is True else 0
@@ -558,10 +584,6 @@ if __name__ == '__main__':
                 state = next_state
                 episode_reward += reward
                 frame_idx += 1
-
-                if len(replay_buffer) > BATCH_SIZE:
-                    for i in range(UPDATE_ITR):
-                        agent.update(BATCH_SIZE, EVAL_NOISE_SCALE, REWARD_SCALE)
 
                 if done:
                     break
@@ -575,6 +597,8 @@ if __name__ == '__main__':
                     time.time() - t0
                 )
             )
+            time.sleep(3)
+
         agent.save()
         plt.plot(all_episode_reward)
         if not os.path.exists('image'):
@@ -590,7 +614,7 @@ if __name__ == '__main__':
         print('training finished, please press "ctrl+c"')
         plate_process.join()
         detect_process.join()
-        trajectory_process.join()
+        # trajectory_process.join()
     
     if args.test:
         agent.load()
@@ -619,4 +643,4 @@ if __name__ == '__main__':
         print('testing finished, please press "ctrl+c"')
         plate_process.join()
         detect_process.join()
-        trajectory_process.join()
+        # trajectory_process.join()
