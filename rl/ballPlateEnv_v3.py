@@ -26,7 +26,7 @@ class Ball_On_Plate_Robot_Env(gym.Env):
         self.pos_last_x = 270
         self.pos_last_y = 270
         self.max_action = 1 #action space normalizaton
-        self.action_fact = 0.025 #restore action space to (-0.05-0)
+        self.action_fact = 0.05 #restore action space to (-0.1-0)
         self.inver_matrix = coordinate_transform()
         # *************************************************** Define the Observation Space ***************************************************
         """
@@ -90,9 +90,9 @@ class Ball_On_Plate_Robot_Env(gym.Env):
     #     return logs
 
     def reset(self):
-        self.count = 0 
+        self.count = 0
+        time.sleep(1)
         observation = self._get_obs()
-        time.sleep(3)
         return observation, {}
 
     def step(self, action):

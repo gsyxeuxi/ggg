@@ -5,11 +5,16 @@ import matplotlib.pyplot as plt
 import os
 import datetime
 from multiprocessing.sharedctypes import Array, Value
-# import tensorflow as tf
+import tensorflow as tf
+import tensorflow_probability as tfp
 
-print(6*(np.random.rand(2)-0.5))
-IS_RESET = Value('b', False)
-print(IS_RESET.value)
+
+# import tensorflow as tf
+while 1 :
+    Normal = tfp.distributions.Normal
+    normal = Normal(0, 1)
+    noise = normal.sample([1,2]) * 0.1
+    print('noise', noise)
 # def trajectory(): 
 #     #l: Half of the length of the diagonal of the square
 #     #p: Time peroide
