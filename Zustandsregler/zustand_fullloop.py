@@ -108,10 +108,10 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
     pos_last_x = 0
     pos_last_y = 0
     vel_diff = np.zeros(2)
-    c0 = -0.03
-    c1 = -0.009
-    # c0 = -0.1
-    # c1 = -0.1
+    # c0 = -0.03
+    # c1 = -0.009
+    c0 = -0.0475
+    c1 = -0.0425
     latency = 1000/60
     
     tlf = py.TlFactory.GetInstance()

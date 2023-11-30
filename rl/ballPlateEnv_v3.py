@@ -91,7 +91,7 @@ class Ball_On_Plate_Robot_Env(gym.Env):
 
     def reset(self):
         self.count = 0
-        time.sleep(1)
+        time.sleep(0.5)
         observation = self._get_obs()
         return observation, {}
 
@@ -115,20 +115,20 @@ class Ball_On_Plate_Robot_Env(gym.Env):
         pos_diff_y = obs[5] - obs[1]
         vel_diff_x = obs[6] - obs[2]
         vel_diff_y = obs[7] - obs[3]
-        # action = np.clip([action[0], action[1]], -1, 1)
-        # angle_x = round(210*self.action_fact*((action[0]-self.max_action) * pos_diff_x + (action[1]-self.max_action) * vel_diff_x), 3)
-        # angle_y = round(210*self.action_fact*((action[0]-self.max_action) * pos_diff_y + (action[1]-self.max_action) * vel_diff_y), 3)
-        # angle = np.clip([angle_x, angle_y], -6, 6)
+        action = np.clip([action[0], action[1]], -1, 1)
+        angle_x = round(210*self.action_fact*((action[0]-self.max_action) * pos_diff_x + (action[1]-self.max_action) * vel_diff_x), 3)
+        angle_y = round(210*self.action_fact*((action[0]-self.max_action) * pos_diff_y + (action[1]-self.max_action) * vel_diff_y), 3)
+        angle = np.clip([angle_x, angle_y], -6, 6)
         done = False
         # ************calculate the rewards************
         costs_pos = 3*(np.abs(pos_diff_x)+np.abs(pos_diff_y))
         costs_vel = np.abs(vel_diff_x)+np.abs(vel_diff_y)
-        # costs_action = 0.2*(np.abs(angle[0])+np.abs(angle[1]))
+        costs_action = 20000*(np.abs(angle[0])+np.abs(angle[1]))
 
         costs_pos = 4*math.sqrt(costs_pos)+costs_pos**2
         costs_vel = 4*math.sqrt(costs_vel)+costs_vel**2
-        # costs_action = 4*math.sqrt(costs_action)+costs_action**2
-        costs_action = 0
+        costs_action = 4*math.sqrt(costs_action)+costs_action**2
+        # costs_action = 0
         # print(costs_pos, costs_vel, costs_action)
         total_costs = costs_pos + costs_vel + costs_action
         self.reward = -total_costs

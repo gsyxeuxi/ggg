@@ -13,7 +13,7 @@ import tensorflow_probability as tfp
 while 1 :
     Normal = tfp.distributions.Normal
     normal = Normal(0, 1)
-    noise = normal.sample([1,2]) * 0.1
+    noise = normal.sample([1,2]) * 0.2
     print('noise', noise)
 # def trajectory(): 
 #     #l: Half of the length of the diagonal of the square

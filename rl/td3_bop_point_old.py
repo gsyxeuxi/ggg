@@ -51,7 +51,7 @@ RENDER = False  # render while training
 ALG_NAME = 'TD3'
 TRAIN_EPISODES = 100  # total number of episodes for training
 TEST_EPISODES = 10  # total number of episodes for training
-MAX_STEPS = 50  # maximum number of steps for one episode
+MAX_STEPS = 100  # maximum number of steps for one episode
 BATCH_SIZE = 128  # update batch size
 EXPLORE_STEPS = 500  # 500 for random action sampling in the beginning of training
 
@@ -60,16 +60,16 @@ UPDATE_ITR = 3  # repeated updates for single step
 Q_LR = 3e-4  # q_net learning rate
 POLICY_LR = 3e-4  # policy_net learning rate
 POLICY_TARGET_UPDATE_INTERVAL = 3  # delayed steps for updating the policy network and target networks
-EXPLORE_NOISE_SCALE = 0.1  # range of action noise for exploration
+EXPLORE_NOISE_SCALE = 0.4  # range of action noise for exploration
 EVAL_NOISE_SCALE = 0.2  # range of action noise for evaluation of action value
 REWARD_SCALE = 1.  # value range of reward
-REPLAY_BUFFER_SIZE = 1e5  # size of replay buffer
+REPLAY_BUFFER_SIZE = 1e6  # size of replay buffer
 
 MAX_ACTION = 1
 ACTION_FACT = 0.05 # -0.1 ~ 0
 
 
-def PIDPlate(action_set1, action_set2, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y, IS_RESET):
+def PIDPlate(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y, IS_RESET):
     REF = 5.03 
     angle = [0.0, 0.0]
     angle_diff = [0.0, 0.0]
@@ -101,21 +101,17 @@ def PIDPlate(action_set1, action_set2, real_pos_x, real_pos_y, pos_set_x, pos_se
             # print(action_set[0], action_set[1])
             # action_set[0] = -0.05
             # action_set[1] = -0.05
-            # print('1', action_set)
-            # print('2', np.clip([action_set[0], action_set[1]], -1, 1))
-            print('action_set3', action_set1.value)
             action_set = np.clip([action_set[0], action_set[1]], -1, 1)
             if IS_RESET.value:
                 angle_set = 6*(np.random.rand(2)-0.5)
                 # print(angle_set)
-                time.sleep(0.5)
+                time.sleep(1)
             else:
-                # print('action is', action_set)
                 angle_set[0] = round(ACTION_FACT*((action_set[0]-MAX_ACTION) * (pos_set_x.value - real_pos_x.value) + (action_set[1]-MAX_ACTION) * (vel_set_x.value - vel_x.value)), 3)
                 angle_set[1] = round(ACTION_FACT*((action_set[0]-MAX_ACTION) * (pos_set_y.value - real_pos_y.value) + (action_set[1]-MAX_ACTION) * (vel_set_y.value - vel_y.value)), 3)
-                # print('angle is', angle_set)
                 angle_set = np.clip([angle_set[0],  angle_set[1]], -6, 6)
                 # print(angle_set)
+                print(action_set[0]-MAX_ACTION)
             ADC_Value = ADC.ADS1263_GetAll(channelList)    # get ADC1 value
             for i in channelList:
                 if(ADC_Value[i]>>31 ==1): #received negativ value, but potentiometer should not return negativ value
@@ -149,7 +145,7 @@ def PIDPlate(action_set1, action_set2, real_pos_x, real_pos_y, pos_set_x, pos_se
         ADC.ADS1263_Exit()
         exit()
 
-def DetectBall(action_set1, action_set2, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y):
+def DetectBall(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y):
     inver_matrix, transform_matrix = coordinate_transform()
     # could move in while loop later
     pos_last_x = 0
@@ -170,7 +166,6 @@ def DetectBall(action_set1, action_set2, real_pos_x, real_pos_y, pos_set_x, pos_
         grabResult = cam.RetrieveResult(5000, py.TimeoutHandling_ThrowException)
         # print(str('Number of skipped images:'), grabResult.GetNumberOfSkippedImages())
         if grabResult.GrabSucceeded():
-            # print('action_set3', action_set[0])
             pos_set_trans = np.round(np.dot(transform_matrix, np.array(([pos_set_x.value*540/400],[pos_set_y.value*540/400],[1]))))
             pos_set_trans_x = int(pos_set_trans[0][0])
             pos_set_trans_y = int(pos_set_trans[1][0])
@@ -438,7 +433,7 @@ class TD3:
             )
         return target_net
 
-    def update(self, batch_size, eval_noise_scale, reward_scale=10., gamma=0.9, soft_tau=1e-2):#tau = 0.005
+    def update(self, batch_size, eval_noise_scale, reward_scale=10., gamma=0.9, soft_tau=1e-2):
         """ update all networks in TD3 """
         self.update_cnt += 1
         state, action, reward, next_state, done = self.replay_buffer.sample(batch_size)
@@ -525,16 +520,14 @@ if __name__ == '__main__':
     pos_set_y = Value('d', 0.0)
     vel_set_x = Value('d', 0.0)
     vel_set_y = Value('d', 0.0)
-    # action_set = Array('d', [0.0, 0.0])
-    action_set1 = Value('d', 0.0)
-    action_set2 = Value('d', 0.0)
+    action_set = Array('d', [0.0, 0.0])
     real_pos_x = Value('d', 0.0)
     real_pos_y = Value('d', 0.0)
     vel_x = Value('d', 0.0)
     vel_y = Value('d', 0.0)
     IS_RESET = Value('b', False)
-    plate_process = Process(target=PIDPlate, args=(action_set1, action_set2, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y, IS_RESET,))
-    detect_process = Process(target=DetectBall, args=(action_set1, action_set2, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y,))
+    plate_process = Process(target=PIDPlate, args=(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y, IS_RESET,))
+    detect_process = Process(target=DetectBall, args=(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y,))
     # trajectory_process = Process(target=trajectory, args=(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y,))
     plate_process.start()
     detect_process.start()
@@ -580,31 +573,27 @@ if __name__ == '__main__':
             IS_RESET.value = False
             state = state.astype(np.float32)
             episode_reward = 0
+
             for step in range(MAX_STEPS):
-                print("********************")
                 if frame_idx > EXPLORE_STEPS:
                     action = agent.policy_net.get_action(state, EXPLORE_NOISE_SCALE)
-                    # print('action is', action)
+                    print('action is', action)
                 else:
                     action = agent.policy_net.sample_action()
-                print('action_set', action)
-                action_set1.value = action[0]
-                action_set2.value = action[1]
-                # for i in range(2):
-                #     action_set[i] = action[i]
-                # print('action_set2', action_set)
+                # print(action)
+                for i in range(2):
+                    action_set[i] = action[i]
+
                 if len(replay_buffer) > BATCH_SIZE:
-                    t = time.time()
                     for i in range(UPDATE_ITR):
                         agent.update(BATCH_SIZE, EVAL_NOISE_SCALE, REWARD_SCALE)
-                    print("3 update time:", time.time()-t)
 
                 next_state, reward, done, _ = env.step(action)
                 next_state = next_state.astype(np.float32)
                 done = 1 if done is True else 0
 
                 replay_buffer.push(state, action, reward, next_state, done)
-                # c_value.append([action_set[0],action_set[1]])
+                c_value.append([action_set[0],action_set[1]])
                 state = next_state
                 episode_reward += reward
                 frame_idx += 1
@@ -642,6 +631,7 @@ if __name__ == '__main__':
     
     if args.test:
         agent.load()
+
         # need an extra call here to make inside functions be able to use model.forward
         state, _= env.reset()
         state = state.astype(np.float32)
@@ -659,8 +649,7 @@ if __name__ == '__main__':
                 action = agent.policy_net.get_action(state, EXPLORE_NOISE_SCALE, greedy=True)
                 for i in range(2):
                     action_set[i] = action[i]
-                print(action_set[0], action_set[1])
-                time.sleep(0.3)
+                time.sleep(0.2)
                 state, reward, done, _= env.step(action)
                 state = state.astype(np.float32)
                 episode_reward += reward

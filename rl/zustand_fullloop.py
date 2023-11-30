@@ -112,8 +112,10 @@ def DetectBall(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y, arr
     pos_last_x = 0
     pos_last_y = 0
     vel_diff = np.zeros(2)
-    c0 = -0.03
-    c1 = -0.009
+    # c0 = -0.03
+    # c1 = -0.009
+    c0 = -0.0475
+    c1 = -0.0425
     latency = 1000/60
     tlf = py.TlFactory.GetInstance()
     device = tlf.CreateFirstDevice()
@@ -158,7 +160,7 @@ def DetectBall(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y, arr
             arr[11] = vel_diff[1]
             # print(real_pos_x, real_pos_y)
             for i in range(2):
-                angle[i] = round(c0 * pos_diff[i] + c1 * vel_diff[i], 3)
+                angle[i] = c0 * pos_diff[i] + c1 * vel_diff[i]
                 if angle[i] > 6:
                     angle[i] = 6
                 if angle[i] < -6:

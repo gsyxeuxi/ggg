@@ -101,6 +101,7 @@ def PIDPlate(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, ve
             # print(action_set[0], action_set[1])
             # action_set[0] = -0.05
             # action_set[1] = -0.05
+            print('action set', action_set[0]-MAX_ACTION)
             angle_set[0] = round(ACTION_FACT*((action_set[0]-MAX_ACTION) * (pos_set_x.value - real_pos_x.value) + (action_set[1]-MAX_ACTION) * (vel_set_x.value - vel_x.value)), 3)
             angle_set[1] = round(ACTION_FACT*((action_set[0]-MAX_ACTION) * (pos_set_y.value - real_pos_y.value) + (action_set[1]-MAX_ACTION) * (vel_set_y.value - vel_y.value)), 3)
             angle_set = np.clip([angle_set[0],  angle_set[1]], -6, 6)
