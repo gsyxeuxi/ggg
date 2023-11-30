@@ -51,7 +51,7 @@ RENDER = False  # render while training
 ALG_NAME = 'TD3'
 TRAIN_EPISODES = 100  # total number of episodes for training
 TEST_EPISODES = 10  # total number of episodes for training
-MAX_STEPS = 100  # maximum number of steps for one episode
+MAX_STEPS = 50  # maximum number of steps for one episode
 BATCH_SIZE = 128  # update batch size
 EXPLORE_STEPS = 500  # 500 for random action sampling in the beginning of training
 
@@ -60,13 +60,13 @@ UPDATE_ITR = 3  # repeated updates for single step
 Q_LR = 3e-4  # q_net learning rate
 POLICY_LR = 3e-4  # policy_net learning rate
 POLICY_TARGET_UPDATE_INTERVAL = 3  # delayed steps for updating the policy network and target networks
-EXPLORE_NOISE_SCALE = 0.4  # range of action noise for exploration
+EXPLORE_NOISE_SCALE = 0.1  # range of action noise for exploration
 EVAL_NOISE_SCALE = 0.2  # range of action noise for evaluation of action value
 REWARD_SCALE = 1.  # value range of reward
-REPLAY_BUFFER_SIZE = 1e6  # size of replay buffer
+REPLAY_BUFFER_SIZE = 1e5  # size of replay buffer
 
 MAX_ACTION = 1
-ACTION_FACT = 0.05 # -0.1 ~ 0
+ACTION_FACT = 0.05 # -0.05 ~ 0
 
 
 def PIDPlate(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y, IS_RESET):
@@ -101,17 +101,18 @@ def PIDPlate(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, ve
             # print(action_set[0], action_set[1])
             # action_set[0] = -0.05
             # action_set[1] = -0.05
-            action_set = np.clip([action_set[0], action_set[1]], -1, 1)
+            
             if IS_RESET.value:
                 angle_set = 6*(np.random.rand(2)-0.5)
-                # print(angle_set)
-                time.sleep(1)
+                print(angle_set)
+                time.sleep(0.5)
             else:
+                # action_set = np.clip([action_set[0], action_set[1]], -1, 1)
+                print('action set', action_set[0]-MAX_ACTION)
                 angle_set[0] = round(ACTION_FACT*((action_set[0]-MAX_ACTION) * (pos_set_x.value - real_pos_x.value) + (action_set[1]-MAX_ACTION) * (vel_set_x.value - vel_x.value)), 3)
                 angle_set[1] = round(ACTION_FACT*((action_set[0]-MAX_ACTION) * (pos_set_y.value - real_pos_y.value) + (action_set[1]-MAX_ACTION) * (vel_set_y.value - vel_y.value)), 3)
                 angle_set = np.clip([angle_set[0],  angle_set[1]], -6, 6)
-                # print(angle_set)
-                print(action_set[0]-MAX_ACTION)
+            # print("******",angle_set)
             ADC_Value = ADC.ADS1263_GetAll(channelList)    # get ADC1 value
             for i in channelList:
                 if(ADC_Value[i]>>31 ==1): #received negativ value, but potentiometer should not return negativ value
@@ -133,7 +134,7 @@ def PIDPlate(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, ve
                 if i == 0:
                     p1.ChangeDutyCycle(val[i])
                 else:
-                    p2.ChangeDutyCycle(val[i])
+                    p2.ChangeDutyCycle(val[i])   
     except IOError as e:
         print(e)
     
@@ -319,13 +320,6 @@ class PolicyNetwork(Model):
         )
         self.action_range = action_range
         self.num_actions = num_actions
-        self.update_cnt = 0
-        # create tensorboard logs
-        self.current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        if not os.path.exists('logs/td3_zupa/'): #Zustandreglerparameter
-            os.makedirs('logs/td3_zupa/')
-        self.log_dir = 'logs/td3_zupa/' + self.current_time
-        self.summary_writer = tf.summary.create_file_writer(self.log_dir)
 
     def forward(self, state):
         x = self.linear1(state)
@@ -354,7 +348,6 @@ class PolicyNetwork(Model):
 
     def get_action(self, state, explore_noise_scale, greedy=False):
         """ generate action with state for interaction with envronment """
-        self.update_cnt += 1
         action = self.forward([state])
         action = self.action_range * action.numpy()[0]
         if greedy:
@@ -362,11 +355,7 @@ class PolicyNetwork(Model):
         # add noise
         normal = Normal(0, 1)
         noise = normal.sample(action.shape) * explore_noise_scale
-        print('noise', noise)
         action += noise
-        with self.summary_writer.as_default():
-                    tf.summary.scalar('c0', action[0], step=self.update_cnt)
-                    tf.summary.scalar('c1', action[1], step=self.update_cnt)
         return action.numpy()
 
     def sample_action(self):
@@ -458,16 +447,12 @@ class TD3:
         with tf.GradientTape() as q1_tape:
             predicted_q_value1 = self.q_net1(q_input)
             q_value_loss1 = tf.reduce_mean(tf.square(predicted_q_value1 - target_q_value))
-            with self.summary_writer.as_default():
-                    tf.summary.scalar('q_value_loss1', q_value_loss1, step=self.update_cnt)
         q1_grad = q1_tape.gradient(q_value_loss1, self.q_net1.trainable_weights)
         self.q_optimizer1.apply_gradients(zip(q1_grad, self.q_net1.trainable_weights))
 
         with tf.GradientTape() as q2_tape:
             predicted_q_value2 = self.q_net2(q_input)
             q_value_loss2 = tf.reduce_mean(tf.square(predicted_q_value2 - target_q_value))
-            with self.summary_writer.as_default():
-                    tf.summary.scalar('q_value_loss2', q_value_loss2, step=self.update_cnt)
         q2_grad = q2_tape.gradient(q_value_loss2, self.q_net2.trainable_weights)
         self.q_optimizer2.apply_gradients(zip(q2_grad, self.q_net2.trainable_weights))
 
@@ -514,6 +499,8 @@ class TD3:
         tl.files.load_and_assign_npz(extend_path('model_target_q_net2.npz'), self.target_q_net2)
         tl.files.load_and_assign_npz(extend_path('model_policy_net.npz'), self.policy_net)
         tl.files.load_and_assign_npz(extend_path('model_target_policy_net.npz'), self.target_policy_net)
+
+
 
 if __name__ == '__main__':
     pos_set_x = Value('d', 0.0)
@@ -563,9 +550,8 @@ if __name__ == '__main__':
         state = state.astype(np.float32)
         agent.policy_net([state])
         agent.target_policy_net([state])
-        print('learn begin')
+
         for episode in range(TRAIN_EPISODES):
-            # state = env.reset().astype(np.float32)
             print("********************")
             IS_RESET.value = True
             state, _ = env.reset()
@@ -575,12 +561,12 @@ if __name__ == '__main__':
             episode_reward = 0
 
             for step in range(MAX_STEPS):
+                if RENDER:
+                    env.render()
                 if frame_idx > EXPLORE_STEPS:
                     action = agent.policy_net.get_action(state, EXPLORE_NOISE_SCALE)
-                    print('action is', action)
                 else:
                     action = agent.policy_net.sample_action()
-                # print(action)
                 for i in range(2):
                     action_set[i] = action[i]
 
@@ -597,8 +583,8 @@ if __name__ == '__main__':
                 state = next_state
                 episode_reward += reward
                 frame_idx += 1
-                print(step)
 
+                
                 if done:
                     break
             if episode == 0:
@@ -611,7 +597,6 @@ if __name__ == '__main__':
                     time.time() - t0
                 )
             )
-
         agent.save()
         plt.plot(all_episode_reward)
         if not os.path.exists('image'):
@@ -634,23 +619,15 @@ if __name__ == '__main__':
 
         # need an extra call here to make inside functions be able to use model.forward
         state, _= env.reset()
-        state = state.astype(np.float32)
         agent.policy_net([state])
 
         for episode in range(TEST_EPISODES):
-            print("********************")
-            IS_RESET.value = True
-            state, _ = env.reset()
-            state = state.astype(np.float32)
-            print(state)
-            IS_RESET.value = False
+            state, _= env.reset()
             episode_reward = 0
             for step in range(MAX_STEPS):
+                env.render()
                 action = agent.policy_net.get_action(state, EXPLORE_NOISE_SCALE, greedy=True)
-                for i in range(2):
-                    action_set[i] = action[i]
-                time.sleep(0.2)
-                state, reward, done, _= env.step(action)
+                state, reward, done, info, _= env.step(action)
                 state = state.astype(np.float32)
                 episode_reward += reward
                 if done:
