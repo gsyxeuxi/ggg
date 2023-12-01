@@ -80,6 +80,7 @@ def PIDPlate(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, ve
     kp = 0.3
     ki = 0.07
     kd = 2.0
+    KEEP = False
     # set up PWM
     GPIO.setmode(GPIO.BCM)
     # set pin as an output pin with optional initial state of HIGH
@@ -101,13 +102,17 @@ def PIDPlate(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, ve
         while(1):
             action_set_clip = np.clip([action_set[0], action_set[1]], -1, 1)
             if IS_RESET.value:
-                angle_set = 6*(np.random.rand(2)-0.5)
+                if KEEP == False:
+                    angle_set = 6*(np.random.rand(2)-0.5)
+                    print('angle_set is', angle_set)
+                    KEEP = True
                 # time.sleep(3)
             else:
                 #print('action is', ACTION_FACT*((action_set_clip[0]-MAX_ACTION)))
                 angle_set[0] = round(ACTION_FACT*((action_set_clip[0]-MAX_ACTION) * (pos_set_x.value - real_pos_x.value) + (action_set_clip[1]-MAX_ACTION) * (vel_set_x.value - vel_x.value)), 3)
                 angle_set[1] = round(ACTION_FACT*((action_set_clip[0]-MAX_ACTION) * (pos_set_y.value - real_pos_y.value) + (action_set_clip[1]-MAX_ACTION) * (vel_set_y.value - vel_y.value)), 3)
                 angle_set = np.clip([angle_set[0],  angle_set[1]], -6, 6)
+                KEEP = False
                 # print(angle_set)
             ADC_Value = ADC.ADS1263_GetAll(channelList)    # get ADC1 value
             for i in channelList:
@@ -503,6 +508,7 @@ class TD3:
 
     def load(self):  # load trained weights
         path = os.path.join('model', '_'.join([ALG_NAME, ENV_ID]))
+        #path = os.path.join('model', '3_0.5_0.2')
         extend_path = lambda s: os.path.join(path, s)
         tl.files.load_and_assign_npz(extend_path('model_q_net1.npz'), self.q_net1)
         tl.files.load_and_assign_npz(extend_path('model_q_net2.npz'), self.q_net2)
@@ -512,8 +518,8 @@ class TD3:
         tl.files.load_and_assign_npz(extend_path('model_target_policy_net.npz'), self.target_policy_net)
 
 if __name__ == '__main__':
-    pos_set_x = Value('d', 0.0)
-    pos_set_y = Value('d', 0.0)
+    pos_set_x = Value('d', 70.0)
+    pos_set_y = Value('d', 100.0)
     vel_set_x = Value('d', 0.0)
     vel_set_y = Value('d', 0.0)
     action_set = Array('d', [0.0, 0.0])
