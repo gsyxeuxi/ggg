@@ -39,6 +39,7 @@ tl.logging.set_verbosity(tl.logging.DEBUG)
 parser = argparse.ArgumentParser(description='Train or test neural net motor controller.')
 parser.add_argument('--train', dest='train', action='store_true', default=False)
 parser.add_argument('--test', dest='test', action='store_true', default=True)
+parser.add_argument('--retrain', dest='retrain', action='store_true', default=False)
 args = parser.parse_args()
 
 #####################  hyper parameters  ####################
@@ -507,8 +508,8 @@ class TD3:
         tl.files.save_npz(self.target_policy_net.trainable_weights, extend_path('model_target_policy_net.npz'))
 
     def load(self):  # load trained weights
-        path = os.path.join('model', '_'.join([ALG_NAME, ENV_ID]))
-        #path = os.path.join('model', '3_0.5_0.2')
+        # path = os.path.join('model', '_'.join([ALG_NAME, ENV_ID]))
+        path = os.path.join('model', '2.5_0.5_0.3')
         extend_path = lambda s: os.path.join(path, s)
         tl.files.load_and_assign_npz(extend_path('model_q_net1.npz'), self.q_net1)
         tl.files.load_and_assign_npz(extend_path('model_q_net2.npz'), self.q_net2)
@@ -518,8 +519,8 @@ class TD3:
         tl.files.load_and_assign_npz(extend_path('model_target_policy_net.npz'), self.target_policy_net)
 
 if __name__ == '__main__':
-    pos_set_x = Value('d', 70.0)
-    pos_set_y = Value('d', 100.0)
+    pos_set_x = Value('d', 40.0)
+    pos_set_y = Value('d', 30.0)
     vel_set_x = Value('d', 0.0)
     vel_set_y = Value('d', 0.0)
     action_set = Array('d', [0.0, 0.0])
@@ -565,6 +566,13 @@ if __name__ == '__main__':
         state = state.astype(np.float32)
         agent.policy_net([state])
         agent.target_policy_net([state])
+
+        current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        if not os.path.exists('logs/td3/'):
+            os.makedirs('logs/td3/')
+        log_dir = 'logs/td3/' + current_time
+        summary_writer = tf.summary.create_file_writer(log_dir)
+
         print('learn begin')
         for episode in range(TRAIN_EPISODES):
             # state = env.reset().astype(np.float32)
@@ -603,6 +611,8 @@ if __name__ == '__main__':
                 all_episode_reward.append(episode_reward)
             else:
                 all_episode_reward.append(all_episode_reward[-1] * 0.9 + episode_reward * 0.1)
+            with summary_writer.as_default():
+                    tf.summary.scalar('episode_reward', episode_reward, step=episode + 1)
             print(
                 'Training  | Episode: {}/{}  | Episode Reward: {:.4f}  | Running Time: {:.4f}'.format(
                     episode + 1, TRAIN_EPISODES, episode_reward,
@@ -615,13 +625,81 @@ if __name__ == '__main__':
         if not os.path.exists('image'):
             os.makedirs('image')
         plt.savefig(os.path.join('image', '_'.join([ALG_NAME, ENV_ID])))
-        plt.figure() #create new figure
-        plt.plot([i[0] for i in c_value], label='c0')
-        plt.plot([i[1] for i in c_value], label='c1')
-        plt.xlabel('Timestep')
-        plt.ylabel('Control parameters')
-        plt.legend()
-        plt.savefig(os.path.join('image', '_'.join(["1", ENV_ID])))
+        print('training finished, please press "ctrl+c"')
+        plate_process.join()
+        detect_process.join()
+        # trajectory_process.join()
+
+    if args.retrain:
+        frame_idx = 0
+        all_episode_reward = []
+        # need an extra call here to make inside functions be able to use model.forward
+        # state = env.reset().astype(np.float32)
+        agent.load()
+        state, _= env.reset()
+        state = state.astype(np.float32)
+        agent.policy_net([state])
+        agent.target_policy_net([state])
+
+        current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        if not os.path.exists('logs/td3/'):
+            os.makedirs('logs/td3/')
+        log_dir = 'logs/td3/' + current_time
+        summary_writer = tf.summary.create_file_writer(log_dir)
+
+        print('learn begin')
+        for episode in range(TRAIN_EPISODES):
+            # state = env.reset().astype(np.float32)
+            print("********************")
+            IS_RESET.value = 1
+            state, _ = env.reset()
+            print(state)
+            IS_RESET.value = 0
+            state = state.astype(np.float32)
+            episode_reward = 0
+            for step in range(MAX_STEPS):
+                print(step)
+                if frame_idx > EXPLORE_STEPS:
+                    action = agent.policy_net.get_action(state, EXPLORE_NOISE_SCALE)
+                    # print('action is', action)
+                else:
+                    action = agent.policy_net.sample_action()
+                for i in range(2):
+                    action_set[i] = action[i]
+                if len(replay_buffer) > BATCH_SIZE:
+                    for i in range(UPDATE_ITR):
+                        agent.update(BATCH_SIZE, EVAL_NOISE_SCALE, REWARD_SCALE)
+
+                next_state, reward, done, _ = env.step(action)
+                next_state = next_state.astype(np.float32)
+                done = 1 if done is True else 0
+
+                replay_buffer.push(state, action, reward, next_state, done)
+                # c_value.append([action_set[0],action_set[1]])
+                state = next_state
+                episode_reward += reward
+                frame_idx += 1
+
+                if done:
+                    break
+            if episode == 0:
+                all_episode_reward.append(episode_reward)
+            else:
+                all_episode_reward.append(all_episode_reward[-1] * 0.9 + episode_reward * 0.1)
+            with summary_writer.as_default():
+                    tf.summary.scalar('episode_reward', episode_reward, step=episode + 1)
+            print(
+                'Training  | Episode: {}/{}  | Episode Reward: {:.4f}  | Running Time: {:.4f}'.format(
+                    episode + 1, TRAIN_EPISODES, episode_reward,
+                    time.time() - t0
+                )
+            )
+
+        agent.save()
+        plt.plot(all_episode_reward)
+        if not os.path.exists('image'):
+            os.makedirs('image')
+        plt.savefig(os.path.join('image', '_'.join([ALG_NAME, ENV_ID])))
         print('training finished, please press "ctrl+c"')
         plate_process.join()
         detect_process.join()
@@ -634,6 +712,12 @@ if __name__ == '__main__':
         state, _= env.reset()
         state = state.astype(np.float32)
         agent.policy_net([state])
+
+        current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        if not os.path.exists('logs/td3/'):
+            os.makedirs('logs/td3/')
+        log_dir = 'logs/td3/' + current_time
+        summary_writer = tf.summary.create_file_writer(log_dir)
 
         for episode in range(TEST_EPISODES):
             print("********************")
@@ -648,12 +732,15 @@ if __name__ == '__main__':
                 for i in range(2):
                     action_set[i] = action[i]
                 print(action_set[0], action_set[1])
-                time.sleep(0.3)
+                time.sleep(0.4)
                 state, reward, done, _= env.step(action)
                 state = state.astype(np.float32)
                 episode_reward += reward
                 if done:
                     break
+            
+            with summary_writer.as_default():
+                    tf.summary.scalar('episode_reward', episode_reward, step=episode + 1)
             print(
                 'Testing  | Episode: {}/{}  | Episode Reward: {:.4f}  | Running Time: {:.4f}'.format(
                     episode + 1, TEST_EPISODES, episode_reward,
@@ -664,3 +751,4 @@ if __name__ == '__main__':
         plate_process.join()
         detect_process.join()
         # trajectory_process.join()
+
