@@ -50,7 +50,7 @@ RENDER = False  # render while training
 
 # RL training
 ALG_NAME = 'TD3'
-TRAIN_EPISODES = 100  # total number of episodes for training
+TRAIN_EPISODES = 50  # total number of episodes for training
 TEST_EPISODES = 10  # total number of episodes for training
 MAX_STEPS = 50  # maximum number of steps for one episode
 BATCH_SIZE = 128  # update batch size
@@ -508,8 +508,9 @@ class TD3:
         tl.files.save_npz(self.target_policy_net.trainable_weights, extend_path('model_target_policy_net.npz'))
 
     def load(self):  # load trained weights
-        # path = os.path.join('model', '_'.join([ALG_NAME, ENV_ID]))
-        path = os.path.join('model', '2.5_0.5_0.3')
+        path = os.path.join('model', '_'.join([ALG_NAME, ENV_ID]))
+        # path = os.path.join('model', '60_10_4.5_70_90')
+        # path = os.path.join('model', '50_10_3_70_90')
         extend_path = lambda s: os.path.join(path, s)
         tl.files.load_and_assign_npz(extend_path('model_q_net1.npz'), self.q_net1)
         tl.files.load_and_assign_npz(extend_path('model_q_net2.npz'), self.q_net2)
@@ -519,8 +520,8 @@ class TD3:
         tl.files.load_and_assign_npz(extend_path('model_target_policy_net.npz'), self.target_policy_net)
 
 if __name__ == '__main__':
-    pos_set_x = Value('d', 40.0)
-    pos_set_y = Value('d', 30.0)
+    pos_set_x = Value('d', -30.0)
+    pos_set_y = Value('d', -50.0)
     vel_set_x = Value('d', 0.0)
     vel_set_y = Value('d', 0.0)
     action_set = Array('d', [0.0, 0.0])
@@ -589,6 +590,7 @@ if __name__ == '__main__':
                     # print('action is', action)
                 else:
                     action = agent.policy_net.sample_action()
+                    time.sleep(1)
                 for i in range(2):
                     action_set[i] = action[i]
                 if len(replay_buffer) > BATCH_SIZE:
@@ -636,6 +638,7 @@ if __name__ == '__main__':
         # need an extra call here to make inside functions be able to use model.forward
         # state = env.reset().astype(np.float32)
         agent.load()
+        time.sleep(5)
         state, _= env.reset()
         state = state.astype(np.float32)
         agent.policy_net([state])
@@ -664,6 +667,7 @@ if __name__ == '__main__':
                     # print('action is', action)
                 else:
                     action = agent.policy_net.sample_action()
+                    time.sleep(0.3)
                 for i in range(2):
                     action_set[i] = action[i]
                 if len(replay_buffer) > BATCH_SIZE:
@@ -706,9 +710,10 @@ if __name__ == '__main__':
         # trajectory_process.join()
     
     if args.test:
-        MAX_STEPS = 5000
+        # MAX_STEPS = 5000
         agent.load()
         # need an extra call here to make inside functions be able to use model.forward
+        time.sleep(5)
         state, _= env.reset()
         state = state.astype(np.float32)
         agent.policy_net([state])
@@ -724,15 +729,14 @@ if __name__ == '__main__':
             IS_RESET.value = True
             state, _ = env.reset()
             state = state.astype(np.float32)
-            print(state)
             IS_RESET.value = False
             episode_reward = 0
             for step in range(MAX_STEPS):
                 action = agent.policy_net.get_action(state, EXPLORE_NOISE_SCALE, greedy=True)
                 for i in range(2):
                     action_set[i] = action[i]
-                print(action_set[0], action_set[1])
-                time.sleep(0.4)
+                # print(action_set[0], action_set[1])
+                time.sleep(0.3)
                 state, reward, done, _= env.step(action)
                 state = state.astype(np.float32)
                 episode_reward += reward

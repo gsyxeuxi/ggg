@@ -39,6 +39,7 @@ tl.logging.set_verbosity(tl.logging.DEBUG)
 parser = argparse.ArgumentParser(description='Train or test neural net motor controller.')
 parser.add_argument('--train', dest='train', action='store_true', default=False)
 parser.add_argument('--test', dest='test', action='store_true', default=True)
+parser.add_argument('--retrain', dest='retrain', action='store_true', default=False)
 args = parser.parse_args()
 
 #####################  hyper parameters  ####################
@@ -49,9 +50,9 @@ RENDER = False  # render while training
 
 # RL training
 ALG_NAME = 'TD3'
-TRAIN_EPISODES = 100  # total number of episodes for training
+TRAIN_EPISODES = 200  # total number of episodes for training
 TEST_EPISODES = 10  # total number of episodes for training
-MAX_STEPS = 200  # maximum number of steps for one episode
+MAX_STEPS = 50  # maximum number of steps for one episode
 BATCH_SIZE = 128  # update batch size
 EXPLORE_STEPS = 500  # 500 for random action sampling in the beginning of training
 
@@ -60,25 +61,27 @@ UPDATE_ITR = 3  # repeated updates for single step
 Q_LR = 3e-4  # q_net learning rate
 POLICY_LR = 3e-4  # policy_net learning rate
 POLICY_TARGET_UPDATE_INTERVAL = 3  # delayed steps for updating the policy network and target networks
-EXPLORE_NOISE_SCALE = 1.0  # range of action noise for exploration
-EVAL_NOISE_SCALE = 0.5  # range of action noise for evaluation of action value
+EXPLORE_NOISE_SCALE = 0.1  # range of action noise for exploration
+EVAL_NOISE_SCALE = 0.2  # range of action noise for evaluation of action value
 REWARD_SCALE = 1.  # value range of reward
-REPLAY_BUFFER_SIZE = 1e6  # size of replay buffer
+REPLAY_BUFFER_SIZE = 1e5  # size of replay buffer
 
 MAX_ACTION = 1
-ACTION_FACT = 0.025 # -0.05 ~ 0
+ACTION_FACT = 0.05 # -0.1 ~ 0
 
 
-def PIDPlate(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y):
+def PIDPlate(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y, IS_RESET):
     REF = 5.03 
     angle = [0.0, 0.0]
     angle_diff = [0.0, 0.0]
     angle_diff_sum = [0.0, 0.0]
     angle_diff_last = [0.0, 0.0] 
     angle_set = [0.0, 0.0]
+    action_set_clip = [0.0, 0.0]
     kp = 0.3
     ki = 0.07
     kd = 2.0
+    KEEP = False
     # set up PWM
     GPIO.setmode(GPIO.BCM)
     # set pin as an output pin with optional initial state of HIGH
@@ -98,14 +101,20 @@ def PIDPlate(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, ve
         ADC.ADS1263_SetMode(0) # 0 is singleChannel, 1 is diffChannel
         channelList = [0, 1]  # The channel must be less than 10
         while(1):
-            # print(action_set[0], action_set[1])
-            # action_set[0] = -0.05
-            # action_set[1] = -0.05
-            print('action set', action_set[0]-MAX_ACTION)
-            angle_set[0] = round(ACTION_FACT*((action_set[0]-MAX_ACTION) * (pos_set_x.value - real_pos_x.value) + (action_set[1]-MAX_ACTION) * (vel_set_x.value - vel_x.value)), 3)
-            angle_set[1] = round(ACTION_FACT*((action_set[0]-MAX_ACTION) * (pos_set_y.value - real_pos_y.value) + (action_set[1]-MAX_ACTION) * (vel_set_y.value - vel_y.value)), 3)
-            angle_set = np.clip([angle_set[0],  angle_set[1]], -6, 6)
-            # print("******",angle_set)
+            action_set_clip = np.clip([action_set[0], action_set[1]], -1, 1)
+            if IS_RESET.value:
+                if KEEP == False:
+                    angle_set = 6*(np.random.rand(2)-0.5)
+                    print('angle_set is', angle_set)
+                    KEEP = True
+                # time.sleep(3)
+            else:
+                #print('action is', ACTION_FACT*((action_set_clip[0]-MAX_ACTION)))
+                angle_set[0] = round(ACTION_FACT*((action_set_clip[0]-MAX_ACTION) * (pos_set_x.value - real_pos_x.value) + (action_set_clip[1]-MAX_ACTION) * (vel_set_x.value - vel_x.value)), 3)
+                angle_set[1] = round(ACTION_FACT*((action_set_clip[0]-MAX_ACTION) * (pos_set_y.value - real_pos_y.value) + (action_set_clip[1]-MAX_ACTION) * (vel_set_y.value - vel_y.value)), 3)
+                angle_set = np.clip([angle_set[0],  angle_set[1]], -6, 6)
+                KEEP = False
+                # print(angle_set)
             ADC_Value = ADC.ADS1263_GetAll(channelList)    # get ADC1 value
             for i in channelList:
                 if(ADC_Value[i]>>31 ==1): #received negativ value, but potentiometer should not return negativ value
@@ -127,7 +136,7 @@ def PIDPlate(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, ve
                 if i == 0:
                     p1.ChangeDutyCycle(val[i])
                 else:
-                    p2.ChangeDutyCycle(val[i])   
+                    p2.ChangeDutyCycle(val[i])
     except IOError as e:
         print(e)
     
@@ -196,7 +205,7 @@ def trajectory(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, 
     #l: Half of the length of the diagonal of the square
     #p: Time peroide
     l = 100
-    p = 16
+    p = 8
     a = l*np.sqrt(2)/(p/8)**2 #acceleration
     while True:
         t = time.time() % p  # Ensure that the trajectory repeats every p seconds
@@ -313,6 +322,13 @@ class PolicyNetwork(Model):
         )
         self.action_range = action_range
         self.num_actions = num_actions
+        self.update_cnt = 0
+        # create tensorboard logs
+        self.current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        if not os.path.exists('logs/td3_zupa/trajectory/'): #Zustandreglerparameter
+            os.makedirs('logs/td3_zupa/trajectory/')
+        self.log_dir = 'logs/td3_zupa/trajectory/' + self.current_time
+        self.summary_writer = tf.summary.create_file_writer(self.log_dir)
 
     def forward(self, state):
         x = self.linear1(state)
@@ -341,6 +357,7 @@ class PolicyNetwork(Model):
 
     def get_action(self, state, explore_noise_scale, greedy=False):
         """ generate action with state for interaction with envronment """
+        self.update_cnt += 1
         action = self.forward([state])
         action = self.action_range * action.numpy()[0]
         if greedy:
@@ -349,6 +366,9 @@ class PolicyNetwork(Model):
         normal = Normal(0, 1)
         noise = normal.sample(action.shape) * explore_noise_scale
         action += noise
+        with self.summary_writer.as_default():
+                    tf.summary.scalar('c0', action[0], step=self.update_cnt)
+                    tf.summary.scalar('c1', action[1], step=self.update_cnt)
         return action.numpy()
 
     def sample_action(self):
@@ -396,9 +416,9 @@ class TD3:
         self.policy_optimizer = tf.optimizers.Adam(policy_lr)
         # create tensorboard logs
         self.current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        if not os.path.exists('logs/td3/'):
-            os.makedirs('logs/td3/')
-        self.log_dir = 'logs/td3/' + self.current_time
+        if not os.path.exists('logs/td3/trajectory/'):
+            os.makedirs('logs/td3/trajectory/')
+        self.log_dir = 'logs/td3/trajectory/' + self.current_time
         self.summary_writer = tf.summary.create_file_writer(self.log_dir)
 
     def target_ini(self, net, target_net):
@@ -415,7 +435,7 @@ class TD3:
             )
         return target_net
 
-    def update(self, batch_size, eval_noise_scale, reward_scale=10., gamma=0.9, soft_tau=1e-2):
+    def update(self, batch_size, eval_noise_scale, reward_scale=10., gamma=0.9, soft_tau=1e-2):#tau = 0.005
         """ update all networks in TD3 """
         self.update_cnt += 1
         state, action, reward, next_state, done = self.replay_buffer.sample(batch_size)
@@ -440,12 +460,16 @@ class TD3:
         with tf.GradientTape() as q1_tape:
             predicted_q_value1 = self.q_net1(q_input)
             q_value_loss1 = tf.reduce_mean(tf.square(predicted_q_value1 - target_q_value))
+            with self.summary_writer.as_default():
+                    tf.summary.scalar('q_value_loss1', q_value_loss1, step=self.update_cnt)
         q1_grad = q1_tape.gradient(q_value_loss1, self.q_net1.trainable_weights)
         self.q_optimizer1.apply_gradients(zip(q1_grad, self.q_net1.trainable_weights))
 
         with tf.GradientTape() as q2_tape:
             predicted_q_value2 = self.q_net2(q_input)
             q_value_loss2 = tf.reduce_mean(tf.square(predicted_q_value2 - target_q_value))
+            with self.summary_writer.as_default():
+                    tf.summary.scalar('q_value_loss2', q_value_loss2, step=self.update_cnt)
         q2_grad = q2_tape.gradient(q_value_loss2, self.q_net2.trainable_weights)
         self.q_optimizer2.apply_gradients(zip(q2_grad, self.q_net2.trainable_weights))
 
@@ -485,6 +509,8 @@ class TD3:
 
     def load(self):  # load trained weights
         path = os.path.join('model', '_'.join([ALG_NAME, ENV_ID]))
+        # path = os.path.join('model', '60_10_4.5_70_90')
+        # path = os.path.join('model', '50_10_3_70_90')
         extend_path = lambda s: os.path.join(path, s)
         tl.files.load_and_assign_npz(extend_path('model_q_net1.npz'), self.q_net1)
         tl.files.load_and_assign_npz(extend_path('model_q_net2.npz'), self.q_net2)
@@ -492,8 +518,6 @@ class TD3:
         tl.files.load_and_assign_npz(extend_path('model_target_q_net2.npz'), self.target_q_net2)
         tl.files.load_and_assign_npz(extend_path('model_policy_net.npz'), self.policy_net)
         tl.files.load_and_assign_npz(extend_path('model_target_policy_net.npz'), self.target_policy_net)
-
-
 
 if __name__ == '__main__':
     pos_set_x = Value('d', 0.0)
@@ -505,7 +529,8 @@ if __name__ == '__main__':
     real_pos_y = Value('d', 0.0)
     vel_x = Value('d', 0.0)
     vel_y = Value('d', 0.0)
-    plate_process = Process(target=PIDPlate, args=(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y,))
+    IS_RESET = Value('i', 0)
+    plate_process = Process(target=PIDPlate, args=(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y, IS_RESET,))
     detect_process = Process(target=DetectBall, args=(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y,))
     trajectory_process = Process(target=trajectory, args=(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y,))
     plate_process.start()
@@ -543,35 +568,44 @@ if __name__ == '__main__':
         agent.policy_net([state])
         agent.target_policy_net([state])
 
+        current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        if not os.path.exists('logs/td3/trajectory/'):
+            os.makedirs('logs/td3/trajectory/')
+        log_dir = 'logs/td3/trajectory/' + current_time
+        summary_writer = tf.summary.create_file_writer(log_dir)
+
+        print('learn begin')
         for episode in range(TRAIN_EPISODES):
             # state = env.reset().astype(np.float32)
-            state, _= env.reset()
+            print("********************")
+            IS_RESET.value = 1
+            state, _ = env.reset()
+            print(state)
+            IS_RESET.value = 0
             state = state.astype(np.float32)
             episode_reward = 0
-
             for step in range(MAX_STEPS):
-                if RENDER:
-                    env.render()
                 if frame_idx > EXPLORE_STEPS:
                     action = agent.policy_net.get_action(state, EXPLORE_NOISE_SCALE)
+                    # print('action is', action)
                 else:
                     action = agent.policy_net.sample_action()
-                print(action)
+                    time.sleep(0.3)
                 for i in range(2):
                     action_set[i] = action[i]
+                if len(replay_buffer) > BATCH_SIZE:
+                    for i in range(UPDATE_ITR):
+                        agent.update(BATCH_SIZE, EVAL_NOISE_SCALE, REWARD_SCALE)
+
                 next_state, reward, done, _ = env.step(action)
                 next_state = next_state.astype(np.float32)
                 done = 1 if done is True else 0
 
                 replay_buffer.push(state, action, reward, next_state, done)
-                c_value.append([action_set[0],action_set[1]])
+                # c_value.append([action_set[0],action_set[1]])
                 state = next_state
                 episode_reward += reward
                 frame_idx += 1
-
-                if len(replay_buffer) > BATCH_SIZE:
-                    for i in range(UPDATE_ITR):
-                        agent.update(BATCH_SIZE, EVAL_NOISE_SCALE, REWARD_SCALE)
 
                 if done:
                     break
@@ -579,47 +613,138 @@ if __name__ == '__main__':
                 all_episode_reward.append(episode_reward)
             else:
                 all_episode_reward.append(all_episode_reward[-1] * 0.9 + episode_reward * 0.1)
+            with summary_writer.as_default():
+                    tf.summary.scalar('episode_reward', episode_reward, step=episode + 1)
             print(
                 'Training  | Episode: {}/{}  | Episode Reward: {:.4f}  | Running Time: {:.4f}'.format(
                     episode + 1, TRAIN_EPISODES, episode_reward,
                     time.time() - t0
                 )
             )
+
         agent.save()
         plt.plot(all_episode_reward)
         if not os.path.exists('image'):
             os.makedirs('image')
         plt.savefig(os.path.join('image', '_'.join([ALG_NAME, ENV_ID])))
-        plt.figure() #create new figure
-        plt.plot([i[0] for i in c_value], label='c0')
-        plt.plot([i[1] for i in c_value], label='c1')
-        plt.xlabel('Timestep')
-        plt.ylabel('Control parameters')
-        plt.legend()
-        plt.savefig(os.path.join('image', '_'.join(["1", ENV_ID])))
+        print('training finished, please press "ctrl+c"')
+        plate_process.join()
+        detect_process.join()
+        trajectory_process.join()
+
+    if args.retrain:
+        frame_idx = 0
+        all_episode_reward = []
+        # need an extra call here to make inside functions be able to use model.forward
+        # state = env.reset().astype(np.float32)
+        agent.load()
+        time.sleep(5)
+        state, _= env.reset()
+        state = state.astype(np.float32)
+        agent.policy_net([state])
+        agent.target_policy_net([state])
+
+        current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        if not os.path.exists('logs/td3/trajectory/'):
+            os.makedirs('logs/td3/trajectory/')
+        log_dir = 'logs/td3/trajectory/' + current_time
+        summary_writer = tf.summary.create_file_writer(log_dir)
+
+        print('learn begin')
+        for episode in range(TRAIN_EPISODES):
+            # state = env.reset().astype(np.float32)
+            print("********************")
+            IS_RESET.value = 1
+            state, _ = env.reset()
+            print(state)
+            IS_RESET.value = 0
+            state = state.astype(np.float32)
+            episode_reward = 0
+            for step in range(MAX_STEPS):
+                print(step)
+                if frame_idx > EXPLORE_STEPS:
+                    action = agent.policy_net.get_action(state, EXPLORE_NOISE_SCALE)
+                    # print('action is', action)
+                else:
+                    action = agent.policy_net.sample_action()
+                    time.sleep(0.3)
+                for i in range(2):
+                    action_set[i] = action[i]
+                if len(replay_buffer) > BATCH_SIZE:
+                    for i in range(UPDATE_ITR):
+                        agent.update(BATCH_SIZE, EVAL_NOISE_SCALE, REWARD_SCALE)
+
+                next_state, reward, done, _ = env.step(action)
+                next_state = next_state.astype(np.float32)
+                done = 1 if done is True else 0
+
+                replay_buffer.push(state, action, reward, next_state, done)
+                # c_value.append([action_set[0],action_set[1]])
+                state = next_state
+                episode_reward += reward
+                frame_idx += 1
+
+                if done:
+                    break
+            if episode == 0:
+                all_episode_reward.append(episode_reward)
+            else:
+                all_episode_reward.append(all_episode_reward[-1] * 0.9 + episode_reward * 0.1)
+            with summary_writer.as_default():
+                    tf.summary.scalar('episode_reward', episode_reward, step=episode + 1)
+            print(
+                'Training  | Episode: {}/{}  | Episode Reward: {:.4f}  | Running Time: {:.4f}'.format(
+                    episode + 1, TRAIN_EPISODES, episode_reward,
+                    time.time() - t0
+                )
+            )
+
+        agent.save()
+        plt.plot(all_episode_reward)
+        if not os.path.exists('image'):
+            os.makedirs('image')
+        plt.savefig(os.path.join('image', '_'.join([ALG_NAME, ENV_ID])))
         print('training finished, please press "ctrl+c"')
         plate_process.join()
         detect_process.join()
         trajectory_process.join()
     
     if args.test:
+        MAX_STEPS = 5000
         agent.load()
-
         # need an extra call here to make inside functions be able to use model.forward
+        time.sleep(5)
         state, _= env.reset()
+        state = state.astype(np.float32)
         agent.policy_net([state])
 
+        current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        if not os.path.exists('logs/td3/trajectory/'):
+            os.makedirs('logs/td3/trajectory/')
+        log_dir = 'logs/td3/trajectory/' + current_time
+        summary_writer = tf.summary.create_file_writer(log_dir)
+
         for episode in range(TEST_EPISODES):
-            state, _= env.reset()
+            print("********************")
+            IS_RESET.value = True
+            state, _ = env.reset()
+            state = state.astype(np.float32)
+            IS_RESET.value = False
             episode_reward = 0
             for step in range(MAX_STEPS):
-                env.render()
                 action = agent.policy_net.get_action(state, EXPLORE_NOISE_SCALE, greedy=True)
-                state, reward, done, info, _= env.step(action)
+                for i in range(2):
+                    action_set[i] = action[i]
+                # print(action_set[0], action_set[1])
+                time.sleep(0.3)
+                state, reward, done, _= env.step(action)
                 state = state.astype(np.float32)
                 episode_reward += reward
                 if done:
                     break
+            
+            with summary_writer.as_default():
+                    tf.summary.scalar('episode_reward', episode_reward, step=episode + 1)
             print(
                 'Testing  | Episode: {}/{}  | Episode Reward: {:.4f}  | Running Time: {:.4f}'.format(
                     episode + 1, TEST_EPISODES, episode_reward,
@@ -630,3 +755,4 @@ if __name__ == '__main__':
         plate_process.join()
         detect_process.join()
         trajectory_process.join()
+
