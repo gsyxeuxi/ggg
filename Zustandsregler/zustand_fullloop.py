@@ -98,7 +98,7 @@ def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
 
 
 def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
-    inver_matrix = coordinate_transform()
+    inver_matrix, transform_matrix = coordinate_transform()
     # pos_set_trans = np.round(np.dot(inver_matrix, np.array(([pos_set_x.value],[pos_set_y.value],[1]))))
     # pos_set_trans_x = int(pos_set_trans[0][0]) - 1
     # pos_set_trans_y = int(pos_set_trans[1][0])
@@ -110,8 +110,8 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
     vel_diff = np.zeros(2)
     # c0 = -0.03
     # c1 = -0.009
-    c0 = -0.0475
-    c1 = -0.0425
+    c0 = -0.02
+    c1 = -0.01
     latency = 1000/60
     
     tlf = py.TlFactory.GetInstance()
@@ -129,10 +129,14 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y, vel_set_x, vel_set_y):
         grabResult = cam.RetrieveResult(5000, py.TimeoutHandling_ThrowException)
         # print(str('Number of skipped images:'), grabResult.GetNumberOfSkippedImages())
         if grabResult.GrabSucceeded():
+            pos_set_trans = np.round(np.dot(transform_matrix, np.array(([pos_set_x.value*540/400],[pos_set_y.value*540/400],[1]))))
+            pos_set_trans_x = int(pos_set_trans[0][0])
+            pos_set_trans_y = int(pos_set_trans[1][0])
             img = grabResult.Array
             img = cv.GaussianBlur(img,(3,3),0)
             dectect_back = detect_circles_cpu(img, cv.HOUGH_GRADIENT, dp=1, min_dist=50, param1=100, param2=36, min_Radius=26, max_Radius=32)
-            img= cv.drawMarker(img, (int(pos_set_x.value), int(pos_set_y.value)), (0, 0, 255), markerType=1)
+            img= cv.drawMarker(img, (int(pos_set_trans_x), int(pos_set_trans_y)), (0, 0, 255), markerType=1)
+            # img= cv.drawMarker(img, (int(pos_set_x.value), int(pos_set_y.value)), (0, 0, 255), markerType=1)
             x = dectect_back[1][0]
             y = dectect_back[1][1]
             #coordinate transform

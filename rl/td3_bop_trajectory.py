@@ -50,9 +50,10 @@ RENDER = False  # render while training
 
 # RL training
 ALG_NAME = 'TD3'
-TRAIN_EPISODES = 200  # total number of episodes for training
+TRAIN_EPISODES = 2000  # total number of episodes for training
 TEST_EPISODES = 10  # total number of episodes for training
-MAX_STEPS = 50  # maximum number of steps for one episode
+MAX_STEPS = 100  # maximum number of steps for one episode
+MAX_STEPS_TEST = 100
 BATCH_SIZE = 128  # update batch size
 EXPLORE_STEPS = 500  # 500 for random action sampling in the beginning of training
 
@@ -64,7 +65,7 @@ POLICY_TARGET_UPDATE_INTERVAL = 3  # delayed steps for updating the policy netwo
 EXPLORE_NOISE_SCALE = 0.1  # range of action noise for exploration
 EVAL_NOISE_SCALE = 0.2  # range of action noise for evaluation of action value
 REWARD_SCALE = 1.  # value range of reward
-REPLAY_BUFFER_SIZE = 1e5  # size of replay buffer
+REPLAY_BUFFER_SIZE = 1e6  # size of replay buffer
 
 MAX_ACTION = 1
 ACTION_FACT = 0.05 # -0.1 ~ 0
@@ -435,7 +436,7 @@ class TD3:
             )
         return target_net
 
-    def update(self, batch_size, eval_noise_scale, reward_scale=10., gamma=0.9, soft_tau=1e-2):#tau = 0.005
+    def update(self, batch_size, eval_noise_scale, reward_scale=10., gamma=0.9, soft_tau=0.005):#tau = 0.005/1e-2
         """ update all networks in TD3 """
         self.update_cnt += 1
         state, action, reward, next_state, done = self.replay_buffer.sample(batch_size)
@@ -496,7 +497,7 @@ class TD3:
             self.target_policy_net = self.target_soft_update(self.policy_net, self.target_policy_net, soft_tau)
 
     def save(self):  # save trained weights
-        path = os.path.join('model', '_'.join([ALG_NAME, ENV_ID]))
+        path = os.path.join('model', '_'.join([ALG_NAME, ENV_ID, 'TRA']))
         if not os.path.exists(path):
             os.makedirs(path)
         extend_path = lambda s: os.path.join(path, s)
@@ -508,8 +509,8 @@ class TD3:
         tl.files.save_npz(self.target_policy_net.trainable_weights, extend_path('model_target_policy_net.npz'))
 
     def load(self):  # load trained weights
-        path = os.path.join('model', '_'.join([ALG_NAME, ENV_ID]))
-        # path = os.path.join('model', '60_10_4.5_70_90')
+        path = os.path.join('model', '_'.join([ALG_NAME, ENV_ID, 'TRA']))
+        # path = os.path.join('model', 'TD3_BOP_TRA/50_20_3_0.01')
         # path = os.path.join('model', '50_10_3_70_90')
         extend_path = lambda s: os.path.join(path, s)
         tl.files.load_and_assign_npz(extend_path('model_q_net1.npz'), self.q_net1)
@@ -584,6 +585,7 @@ if __name__ == '__main__':
             IS_RESET.value = 0
             state = state.astype(np.float32)
             episode_reward = 0
+            epsiode_norm = 0
             for step in range(MAX_STEPS):
                 if frame_idx > EXPLORE_STEPS:
                     action = agent.policy_net.get_action(state, EXPLORE_NOISE_SCALE)
@@ -597,7 +599,7 @@ if __name__ == '__main__':
                     for i in range(UPDATE_ITR):
                         agent.update(BATCH_SIZE, EVAL_NOISE_SCALE, REWARD_SCALE)
 
-                next_state, reward, done, _ = env.step(action)
+                next_state, reward, done, pos_norm = env.step(action)
                 next_state = next_state.astype(np.float32)
                 done = 1 if done is True else 0
 
@@ -605,10 +607,11 @@ if __name__ == '__main__':
                 # c_value.append([action_set[0],action_set[1]])
                 state = next_state
                 episode_reward += reward
+                epsiode_norm += pos_norm
                 frame_idx += 1
-
                 if done:
                     break
+            epsiode_norm_ave = epsiode_norm / MAX_STEPS
             if episode == 0:
                 all_episode_reward.append(episode_reward)
             else:
@@ -710,7 +713,7 @@ if __name__ == '__main__':
         trajectory_process.join()
     
     if args.test:
-        MAX_STEPS = 5000
+        # MAX_STEPS = 5000
         agent.load()
         # need an extra call here to make inside functions be able to use model.forward
         time.sleep(5)
@@ -731,7 +734,7 @@ if __name__ == '__main__':
             state = state.astype(np.float32)
             IS_RESET.value = False
             episode_reward = 0
-            for step in range(MAX_STEPS):
+            for step in range(MAX_STEPS_TEST):
                 action = agent.policy_net.get_action(state, EXPLORE_NOISE_SCALE, greedy=True)
                 for i in range(2):
                     action_set[i] = action[i]
