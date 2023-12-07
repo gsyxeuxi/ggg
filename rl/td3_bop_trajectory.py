@@ -50,7 +50,7 @@ RENDER = False  # render while training
 
 # RL training
 ALG_NAME = 'TD3'
-TRAIN_EPISODES = 2000  # total number of episodes for training
+TRAIN_EPISODES = 200  # total number of episodes for training
 TEST_EPISODES = 10  # total number of episodes for training
 MAX_STEPS = 100  # maximum number of steps for one episode
 MAX_STEPS_TEST = 100

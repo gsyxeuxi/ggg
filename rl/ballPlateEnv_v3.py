@@ -91,7 +91,7 @@ class Ball_On_Plate_Robot_Env(gym.Env):
 
     def reset(self):
         self.count = 0
-        time.sleep(1)
+        # time.sleep(1)
         observation = self._get_obs()
         return observation, {}
 
@@ -122,7 +122,7 @@ class Ball_On_Plate_Robot_Env(gym.Env):
         done = False
         # ************calculate the rewards************
         pos_normal = np.abs(pos_diff_x)+np.abs(pos_diff_y)
-        costs_pos = 130*pos_normal
+        costs_pos = 50*pos_normal
         costs_vel = 20*(np.abs(vel_diff_x)+np.abs(vel_diff_y))
         costs_action = 3*(np.abs(angle[0])+np.abs(angle[1]))
         # costs_pos = 1*pos_normal
@@ -133,8 +133,8 @@ class Ball_On_Plate_Robot_Env(gym.Env):
         costs_pos = 4*math.sqrt(costs_pos)+costs_pos**2
         costs_vel = 4*math.sqrt(costs_vel)+costs_vel**2
         costs_action = 4*math.sqrt(costs_action)+costs_action**2
-        # costs_action = 0
-        # print(costs_pos, costs_vel, costs_action)
+        # costs_vel = 0
+        print(costs_pos, costs_vel, costs_action)
         total_costs = costs_pos + costs_vel + costs_action
         self.reward = -total_costs
 
