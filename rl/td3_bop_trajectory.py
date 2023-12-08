@@ -509,8 +509,8 @@ class TD3:
         tl.files.save_npz(self.target_policy_net.trainable_weights, extend_path('model_target_policy_net.npz'))
 
     def load(self):  # load trained weights
-        path = os.path.join('model', '_'.join([ALG_NAME, ENV_ID, 'TRA']))
-        # path = os.path.join('model', 'TD3_BOP_TRA/50_20_3_0.01')
+        # path = os.path.join('model', '_'.join([ALG_NAME, ENV_ID, 'TRA']))
+        path = os.path.join('model', 'TD3_BOP_TRA/50_20_3_0.01')
         # path = os.path.join('model', '50_10_3_70_90')
         extend_path = lambda s: os.path.join(path, s)
         tl.files.load_and_assign_npz(extend_path('model_q_net1.npz'), self.q_net1)

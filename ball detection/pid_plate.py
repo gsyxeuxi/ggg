@@ -10,7 +10,7 @@ from coord_trans import coordinate_transform
 from multiprocessing import Process, Value
 
 
-def PIDPlate(angle_1, angle_2):
+def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y):
     REF = 5.03 
     angle = [0.0, 0.0]
     angle_diff = [0.0, 0.0]
@@ -19,7 +19,7 @@ def PIDPlate(angle_1, angle_2):
     angle_set = [0.0, 0.0]
     kp = 0.3
     ki = 0.07
-    kd = 2.1
+    kd = 2.0
     # kp = 0.24
     # ki = 0.05
     # kd = 4.58
@@ -95,26 +95,22 @@ def PIDPlate(angle_1, angle_2):
         exit()
 
 
-def PIDBall(angle_1, angle_2):
-    inver_matrix = coordinate_transform() 
-    a1 = np.round(np.dot(inver_matrix, np.array(([390],[150],[1]))))
-    a2 = np.round(np.dot(inver_matrix, np.array(([390],[390],[1]))))
-    a3 = np.round(np.dot(inver_matrix, np.array(([150],[390],[1]))))
-    a4 = np.round(np.dot(inver_matrix, np.array(([150],[150],[1]))))
-    a5 = np.round(np.dot(inver_matrix, np.array(([270],[270],[1]))))
-    a = []
-    a.append(a1)
-    a.append(a2)
-    a.append(a3)
-    a.append(a4)
-    a.append(a5)
+def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y):
+    inver_matrix = coordinate_transform()
+    pos_set_trans = np.round(np.dot(inver_matrix, np.array(([pos_set_x.value],[pos_set_y.value],[1]))))
+    pos_set_trans_x = int(pos_set_trans[0][0]) - 1
+    pos_set_trans_y = int(pos_set_trans[1][0])
     angle = [0.0, 0.0]
     pos_diff = [0.0, 0.0]
     pos_diff_sum = [0.0, 0.0]
     pos_diff_last = [0.0, 0.0]
+    # kp = -0.01
+    # ki = -0.00019
+    # kd = -0.7
     kp = -0.011
     ki = -0.0005
     kd = -0.9
+    
     tlf = py.TlFactory.GetInstance()
     device = tlf.CreateFirstDevice()
     cam = py.InstantCamera(device)
@@ -123,43 +119,17 @@ def PIDBall(angle_1, angle_2):
     cam.UserSetSelector = "UserSet2"
     cam.UserSetLoad.Execute()
     cam.AcquisitionFrameRateEnable.SetValue(True)
-    cam.AcquisitionFrameRate.SetValue(100)
+    cam.AcquisitionFrameRate.SetValue(60)
     cam.StartGrabbing(py.GrabStrategy_LatestImageOnly)
-    start_time = time.time()
+    previous_time = time.time()
     while cam.IsGrabbing():
         grabResult = cam.RetrieveResult(5000, py.TimeoutHandling_ThrowException)
-        if time.time() - start_time > 0 and time.time() - start_time <= 4:
-            pos_set_x = 390
-            pos_set_y = 150
-            pos_set_trans = a[0]
-        if time.time() - start_time > 4 and time.time() - start_time <= 8:
-            pos_set_x = 390
-            pos_set_y = 390
-            pos_set_trans = a[1]
-        if time.time() - start_time > 8 and time.time() - start_time <= 12:
-            pos_set_x = 150
-            pos_set_y = 390
-            pos_set_trans = a[2]
-        if time.time() - start_time > 12 and time.time() - start_time <= 16:
-            pos_set_x = 150
-            pos_set_y = 150
-            pos_set_trans = a[3]
-        if time.time() - start_time > 16 and time.time() - start_time <= 20:
-            pos_set_x = 390
-            pos_set_y = 150
-            pos_set_trans = a[0]
-        if time.time() - start_time > 20:
-            pos_set_x = 270
-            pos_set_y = 270
-            pos_set_trans = a[4]
-        pos_set_trans_x = int(pos_set_trans[0][0]) - 1
-        pos_set_trans_y = int(pos_set_trans[1][0])
-
+        # print(str('Number of skipped images:'), grabResult.GetNumberOfSkippedImages())
         if grabResult.GrabSucceeded():
             img = grabResult.Array
             img = cv.GaussianBlur(img,(3,3),0)
             dectect_back = detect_circles_cpu(img, cv.HOUGH_GRADIENT, dp=1, min_dist=50, param1=100, param2=36, min_Radius=26, max_Radius=32)
-            img= cv.drawMarker(img, (pos_set_x, pos_set_y), (0, 0, 255), markerType=1)
+            img= cv.drawMarker(img, (int(pos_set_x.value), int(pos_set_y.value)), (0, 0, 255), markerType=1)
             x = dectect_back[1][0]
             y = dectect_back[1][1]
             #coordinate transform
@@ -168,7 +138,7 @@ def PIDBall(angle_1, angle_2):
             real_pos_y = real_pos[1][0]
             pos_diff[0] = pos_set_trans_x - real_pos_x
             pos_diff[1] = pos_set_trans_y - real_pos_y
-            # print(real_pos_x, real_pos_y)
+            print(real_pos_x, real_pos_y)
             for i in range(2):
                 pos_diff_sum[i] += pos_diff[i]
                 if pos_diff_sum[i] > 1500:
@@ -185,14 +155,17 @@ def PIDBall(angle_1, angle_2):
                 pos_diff_last[i] = pos_diff[i]
             for i in range(2):
                 print("\33[2A")
+
+            # print(angle[0])
             angle_1.value = angle[0]
             angle_2.value = angle[1]
-            # current_time = time.time()
-            # latency = round(1000 * (current_time - previous_time), 2)
-            # previous_time = current_time
+
+            current_time = time.time()
+            latency = round(1000 * (current_time - previous_time), 2)
+            previous_time = current_time
             # print(str('latency is:'), latency, str('ms'))
-            cv.namedWindow('Trajectory Control', cv.WINDOW_NORMAL)
-            cv.imshow('Trajectory Control', img)
+            cv.namedWindow('title', cv.WINDOW_NORMAL)
+            cv.imshow('title', img)
             k = cv.waitKey(1)
             if k == 27:
                 break
@@ -204,20 +177,23 @@ def PIDBall(angle_1, angle_2):
 
 
 def main():
-    
-    while 1 :
-        print('Please set the position of ball')
-        # pos_set_x = Value('d', float(input("Pos x =")))
-        # pos_set_y = Value('d', float(input("Pos y =")))
-        angle_1 = Value('d', 0.0)
-        angle_2 = Value('d', 0.0)
-        ball_process = Process(target=PIDBall, args=(angle_1, angle_2,))
-        plate_process = Process(target=PIDPlate, args=(angle_1, angle_2,))
-        ball_process.start()
-        plate_process.start()
-        # third process for set_xy
-        ball_process.join()
-        plate_process.join()
+    pos_set_x = Value('d', 0.0)
+    pos_set_y = Value('d', 0.0)
+    angle_1 = Value('d', 0.0)
+    angle_2 = Value('d', 0.0)
+    print('****')
+    ball_process = Process(target=PIDBall, args=(angle_1, angle_2, pos_set_x, pos_set_y,))
+    plate_process = Process(target=PIDPlate, args=(angle_1, angle_2, pos_set_x, pos_set_y,))
+    # ball_process.start()
+    plate_process.start()
+    print('****')
+    for i in range(10):
+        print("Angle 1 =")
+        angle_1.value = float(input())
+        print("Angle 2 =")
+        angle_2.value = float(input())
+    # ball_process.join()
+    plate_process.join()
 
 
 if __name__ == '__main__':

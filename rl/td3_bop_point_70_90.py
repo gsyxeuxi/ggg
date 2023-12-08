@@ -50,10 +50,9 @@ RENDER = False  # render while training
 
 # RL training
 ALG_NAME = 'TD3'
-TRAIN_EPISODES = 2500  # total number of episodes for training
+TRAIN_EPISODES = 100  # total number of episodes for training
 TEST_EPISODES = 10  # total number of episodes for training
 MAX_STEPS = 50  # maximum number of steps for one episode
-MAX_STEPS_TEST = 100
 BATCH_SIZE = 128  # update batch size
 EXPLORE_STEPS = 500  # 500 for random action sampling in the beginning of training
 
@@ -65,7 +64,7 @@ POLICY_TARGET_UPDATE_INTERVAL = 3  # delayed steps for updating the policy netwo
 EXPLORE_NOISE_SCALE = 0.1  # range of action noise for exploration
 EVAL_NOISE_SCALE = 0.2  # range of action noise for evaluation of action value
 REWARD_SCALE = 1.  # value range of reward
-REPLAY_BUFFER_SIZE = 1e6  # size of replay buffer
+REPLAY_BUFFER_SIZE = 1e5  # size of replay buffer
 
 MAX_ACTION = 1
 ACTION_FACT = 0.05 # -0.1 ~ 0
@@ -103,24 +102,19 @@ def PIDPlate(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, ve
         channelList = [0, 1]  # The channel must be less than 10
         while(1):
             action_set_clip = np.clip([action_set[0], action_set[1]], -1, 1)
-            # if IS_RESET.value:
-            #     if KEEP == False:
-            #         angle_set = 6*(np.random.rand(2)-0.5)
-            #         print('angle_set is', angle_set)
-            #         KEEP = True
-            #     # time.sleep(3)
-            # else:
-            #     #print('action is', ACTION_FACT*((action_set_clip[0]-MAX_ACTION)))
-            #     angle_set[0] = round(ACTION_FACT*((action_set_clip[0]-MAX_ACTION) * (pos_set_x.value - real_pos_x.value) + (action_set_clip[1]-MAX_ACTION) * (vel_set_x.value - vel_x.value)), 3)
-            #     angle_set[1] = round(ACTION_FACT*((action_set_clip[0]-MAX_ACTION) * (pos_set_y.value - real_pos_y.value) + (action_set_clip[1]-MAX_ACTION) * (vel_set_y.value - vel_y.value)), 3)
-            #     angle_set = np.clip([angle_set[0],  angle_set[1]], -6, 6)
-            #     KEEP = False
-            #     # print(angle_set)
-
-            angle_set[0] = round(ACTION_FACT*((action_set_clip[0]-MAX_ACTION) * (pos_set_x.value - real_pos_x.value) + (action_set_clip[1]-MAX_ACTION) * (vel_set_x.value - vel_x.value)), 3)
-            angle_set[1] = round(ACTION_FACT*((action_set_clip[0]-MAX_ACTION) * (pos_set_y.value - real_pos_y.value) + (action_set_clip[1]-MAX_ACTION) * (vel_set_y.value - vel_y.value)), 3)
-            angle_set = np.clip([angle_set[0],  angle_set[1]], -6, 6)
-
+            if IS_RESET.value:
+                if KEEP == False:
+                    angle_set = 6*(np.random.rand(2)-0.5)
+                    print('angle_set is', angle_set)
+                    KEEP = True
+                # time.sleep(3)
+            else:
+                #print('action is', ACTION_FACT*((action_set_clip[0]-MAX_ACTION)))
+                angle_set[0] = round(ACTION_FACT*((action_set_clip[0]-MAX_ACTION) * (pos_set_x.value - real_pos_x.value) + (action_set_clip[1]-MAX_ACTION) * (vel_set_x.value - vel_x.value)), 3)
+                angle_set[1] = round(ACTION_FACT*((action_set_clip[0]-MAX_ACTION) * (pos_set_y.value - real_pos_y.value) + (action_set_clip[1]-MAX_ACTION) * (vel_set_y.value - vel_y.value)), 3)
+                angle_set = np.clip([angle_set[0],  angle_set[1]], -6, 6)
+                KEEP = False
+                # print(angle_set)
             ADC_Value = ADC.ADS1263_GetAll(channelList)    # get ADC1 value
             for i in channelList:
                 if(ADC_Value[i]>>31 ==1): #received negativ value, but potentiometer should not return negativ value
@@ -212,24 +206,49 @@ def trajectory(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, 
     #p: Time peroide
     l = 100
     p = 16
-    # a = l*np.sqrt(2)/(p/8)**2 #acceleration
+    a = l*np.sqrt(2)/(p/8)**2 #acceleration
     while True:
         t = time.time() % p  # Ensure that the trajectory repeats every p seconds
-        if 0 <= t < p/4:
-            pos_set_x.value = -100
-            pos_set_y.value = 0
-            
-        elif p/4 <= t < p/2:
-            pos_set_x.value = 0
-            pos_set_y.value = -100
-            
-        elif p/2 <= t < 3*p/4:
-            pos_set_x.value = 100
-            pos_set_y.value = 0
-            
+        if 0 <= t < p/8:
+            pos_set_x.value = l - 0.5 * a * t**2/np.sqrt(2)
+            pos_set_y.value = 0.5 * a * t**2/np.sqrt(2)
+            vel_set_x.value = - a * t * 2/np.sqrt(2)
+            vel_set_y.value = a * t * 2/np.sqrt(2)
+        elif p/8 <= t < p/4:
+            pos_set_x.value = 0.5 * a * (p/4-t)**2/np.sqrt(2)
+            pos_set_y.value = l - 0.5 * a * (p/4-t)**2/np.sqrt(2)
+            vel_set_x.value = - a * (p/4-t) * 2/np.sqrt(2)
+            vel_set_y.value = a * (p/4-t) * 2/np.sqrt(2)
+        elif p/4 <= t < 3*p/8:
+            pos_set_x.value = -0.5 * a * (t-p/4)**2/np.sqrt(2)
+            pos_set_y.value = l - 0.5 * a * (t-p/4)**2/np.sqrt(2)
+            vel_set_x.value = - a * (t-p/4) * 2/np.sqrt(2)
+            vel_set_y.value = - a * (t-p/4) * 2/np.sqrt(2)
+        elif 3*p/8 <= t < p/2:
+            pos_set_x.value = -l + 0.5 * a * (p/2-t)**2/np.sqrt(2)
+            pos_set_y.value = 0.5 * a * (p/2-t)**2/np.sqrt(2)
+            vel_set_x.value = - a * (p/2-t) * 2/np.sqrt(2)
+            vel_set_y.value = - a * (p/2-t) * 2/np.sqrt(2)
+        elif p/2 <= t < 5*p/8:
+            pos_set_x.value = -l + 0.5 * a * (t-p/2)**2/np.sqrt(2)
+            pos_set_y.value = -0.5 * a * (t-p/2)**2/np.sqrt(2)
+            vel_set_x.value = a * (t-p/2) * 2/np.sqrt(2)
+            vel_set_y.value = -a * (t-p/2) * 2/np.sqrt(2)
+        elif 5*p/8 <= t < 3*p/4:
+            pos_set_x.value = -0.5 * a * (t-3*p/4)**2/np.sqrt(2)
+            pos_set_y.value = -l + 0.5 * a * (t-3*p/4)**2/np.sqrt(2)
+            vel_set_x.value = a * (3*p/4-t) * 2/np.sqrt(2)
+            vel_set_y.value = -a * (3*p/4-t) * 2/np.sqrt(2)
+        elif 3*p/4 <= t < 7*p/8:
+            pos_set_x.value = 0.5 * a * (t-3*p/4)**2/np.sqrt(2)
+            pos_set_y.value = -l + 0.5 * a * (t-3*p/4)**2/np.sqrt(2)
+            vel_set_x.value = a * (t-3*p/4) * 2/np.sqrt(2)
+            vel_set_y.value = a * (t-3*p/4) * 2/np.sqrt(2)
         else:
-            pos_set_x.value = 0
-            pos_set_y.value = 100
+            pos_set_x.value = l - 0.5 * a * (t-p)**2/np.sqrt(2)
+            pos_set_y.value = -0.5 * a * (t-p)**2/np.sqrt(2)
+            vel_set_x.value = a * (p-t) * 2/np.sqrt(2)
+            vel_set_y.value = a * (p-t) * 2/np.sqrt(2)
 
 class ReplayBuffer:
     """
@@ -306,9 +325,9 @@ class PolicyNetwork(Model):
         self.update_cnt = 0
         # create tensorboard logs
         self.current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        if not os.path.exists('logs/td3_zupa/trajectory/'): #Zustandreglerparameter
-            os.makedirs('logs/td3_zupa/trajectory/')
-        self.log_dir = 'logs/td3_zupa/trajectory/' + self.current_time
+        if not os.path.exists('logs/td3_zupa/'): #Zustandreglerparameter
+            os.makedirs('logs/td3_zupa/')
+        self.log_dir = 'logs/td3_zupa/' + self.current_time
         self.summary_writer = tf.summary.create_file_writer(self.log_dir)
 
     def forward(self, state):
@@ -397,9 +416,9 @@ class TD3:
         self.policy_optimizer = tf.optimizers.Adam(policy_lr)
         # create tensorboard logs
         self.current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        if not os.path.exists('logs/td3/trajectory/'):
-            os.makedirs('logs/td3/trajectory/')
-        self.log_dir = 'logs/td3/trajectory/' + self.current_time
+        if not os.path.exists('logs/td3/'):
+            os.makedirs('logs/td3/')
+        self.log_dir = 'logs/td3/' + self.current_time
         self.summary_writer = tf.summary.create_file_writer(self.log_dir)
 
     def target_ini(self, net, target_net):
@@ -416,7 +435,7 @@ class TD3:
             )
         return target_net
 
-    def update(self, batch_size, eval_noise_scale, reward_scale=10., gamma=0.9, soft_tau=0.005):#tau = 0.005/1e-2
+    def update(self, batch_size, eval_noise_scale, reward_scale=10., gamma=0.9, soft_tau=1e-2):#tau = 0.005
         """ update all networks in TD3 """
         self.update_cnt += 1
         state, action, reward, next_state, done = self.replay_buffer.sample(batch_size)
@@ -477,7 +496,7 @@ class TD3:
             self.target_policy_net = self.target_soft_update(self.policy_net, self.target_policy_net, soft_tau)
 
     def save(self):  # save trained weights
-        path = os.path.join('model', '_'.join([ALG_NAME, ENV_ID, 'TRA']))
+        path = os.path.join('model', '_'.join([ALG_NAME, ENV_ID]))
         if not os.path.exists(path):
             os.makedirs(path)
         extend_path = lambda s: os.path.join(path, s)
@@ -489,9 +508,9 @@ class TD3:
         tl.files.save_npz(self.target_policy_net.trainable_weights, extend_path('model_target_policy_net.npz'))
 
     def load(self):  # load trained weights
-        # path = os.path.join('model', '_'.join([ALG_NAME, ENV_ID, 'TRA']))
-        path = os.path.join('model', 'TD3_BOP_TRA/50_20_3_v2_t16')
-        # path = os.path.join('model', '50_10_3_70_90')
+        # path = os.path.join('model', '_'.join([ALG_NAME, ENV_ID]))
+        # path = os.path.join('model', '50_10_3_trans')
+        path = os.path.join('model', '50_10_3_70_90')
         extend_path = lambda s: os.path.join(path, s)
         tl.files.load_and_assign_npz(extend_path('model_q_net1.npz'), self.q_net1)
         tl.files.load_and_assign_npz(extend_path('model_q_net2.npz'), self.q_net2)
@@ -501,8 +520,8 @@ class TD3:
         tl.files.load_and_assign_npz(extend_path('model_target_policy_net.npz'), self.target_policy_net)
 
 if __name__ == '__main__':
-    pos_set_x = Value('d', 0.0)
-    pos_set_y = Value('d', 0.0)
+    pos_set_x = Value('d', 70.0)
+    pos_set_y = Value('d', 90.0)
     vel_set_x = Value('d', 0.0)
     vel_set_y = Value('d', 0.0)
     action_set = Array('d', [0.0, 0.0])
@@ -513,10 +532,10 @@ if __name__ == '__main__':
     IS_RESET = Value('i', 0)
     plate_process = Process(target=PIDPlate, args=(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y, IS_RESET,))
     detect_process = Process(target=DetectBall, args=(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y,))
-    trajectory_process = Process(target=trajectory, args=(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y,))
+    # trajectory_process = Process(target=trajectory, args=(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y,))
     plate_process.start()
     detect_process.start()
-    trajectory_process.start()
+    # trajectory_process.start()
     
     #Main process training 
     arr = [real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, vel_y, vel_set_x, vel_set_y]
@@ -550,9 +569,9 @@ if __name__ == '__main__':
         agent.target_policy_net([state])
 
         current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        if not os.path.exists('logs/td3/trajectory/'):
-            os.makedirs('logs/td3/trajectory/')
-        log_dir = 'logs/td3/trajectory/' + current_time
+        if not os.path.exists('logs/td3/'):
+            os.makedirs('logs/td3/')
+        log_dir = 'logs/td3/' + current_time
         summary_writer = tf.summary.create_file_writer(log_dir)
 
         print('learn begin')
@@ -565,21 +584,20 @@ if __name__ == '__main__':
             IS_RESET.value = 0
             state = state.astype(np.float32)
             episode_reward = 0
-            epsiode_norm = 0
             for step in range(MAX_STEPS):
                 if frame_idx > EXPLORE_STEPS:
                     action = agent.policy_net.get_action(state, EXPLORE_NOISE_SCALE)
                     # print('action is', action)
                 else:
                     action = agent.policy_net.sample_action()
-                    time.sleep(0.3)
+                    time.sleep(1)
                 for i in range(2):
                     action_set[i] = action[i]
                 if len(replay_buffer) > BATCH_SIZE:
                     for i in range(UPDATE_ITR):
                         agent.update(BATCH_SIZE, EVAL_NOISE_SCALE, REWARD_SCALE)
 
-                next_state, reward, done, pos_norm = env.step(action)
+                next_state, reward, done, _ = env.step(action)
                 next_state = next_state.astype(np.float32)
                 done = 1 if done is True else 0
 
@@ -587,11 +605,10 @@ if __name__ == '__main__':
                 # c_value.append([action_set[0],action_set[1]])
                 state = next_state
                 episode_reward += reward
-                epsiode_norm += pos_norm
                 frame_idx += 1
+
                 if done:
                     break
-            epsiode_norm_ave = epsiode_norm / MAX_STEPS
             if episode == 0:
                 all_episode_reward.append(episode_reward)
             else:
@@ -613,7 +630,7 @@ if __name__ == '__main__':
         print('training finished, please press "ctrl+c"')
         plate_process.join()
         detect_process.join()
-        trajectory_process.join()
+        # trajectory_process.join()
 
     if args.retrain:
         frame_idx = 0
@@ -628,9 +645,9 @@ if __name__ == '__main__':
         agent.target_policy_net([state])
 
         current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        if not os.path.exists('logs/td3/trajectory/'):
-            os.makedirs('logs/td3/trajectory/')
-        log_dir = 'logs/td3/trajectory/' + current_time
+        if not os.path.exists('logs/td3/'):
+            os.makedirs('logs/td3/')
+        log_dir = 'logs/td3/' + current_time
         summary_writer = tf.summary.create_file_writer(log_dir)
 
         print('learn begin')
@@ -690,7 +707,7 @@ if __name__ == '__main__':
         print('training finished, please press "ctrl+c"')
         plate_process.join()
         detect_process.join()
-        trajectory_process.join()
+        # trajectory_process.join()
     
     if args.test:
         # MAX_STEPS = 5000
@@ -702,9 +719,9 @@ if __name__ == '__main__':
         agent.policy_net([state])
 
         current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        if not os.path.exists('logs/td3/trajectory/'):
-            os.makedirs('logs/td3/trajectory/')
-        log_dir = 'logs/td3/trajectory/' + current_time
+        if not os.path.exists('logs/td3/'):
+            os.makedirs('logs/td3/')
+        log_dir = 'logs/td3/' + current_time
         summary_writer = tf.summary.create_file_writer(log_dir)
 
         for episode in range(TEST_EPISODES):
@@ -714,7 +731,7 @@ if __name__ == '__main__':
             state = state.astype(np.float32)
             IS_RESET.value = False
             episode_reward = 0
-            for step in range(MAX_STEPS_TEST):
+            for step in range(MAX_STEPS):
                 action = agent.policy_net.get_action(state, EXPLORE_NOISE_SCALE, greedy=True)
                 for i in range(2):
                     action_set[i] = action[i]
@@ -737,5 +754,5 @@ if __name__ == '__main__':
         print('testing finished, please press "ctrl+c"')
         plate_process.join()
         detect_process.join()
-        trajectory_process.join()
+        # trajectory_process.join()
 
