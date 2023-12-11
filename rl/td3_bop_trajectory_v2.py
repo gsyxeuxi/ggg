@@ -50,7 +50,7 @@ RENDER = False  # render while training
 
 # RL training
 ALG_NAME = 'TD3'
-TRAIN_EPISODES = 2500  # total number of episodes for training
+TRAIN_EPISODES = 200  # total number of episodes for training
 TEST_EPISODES = 10  # total number of episodes for training
 MAX_STEPS = 50  # maximum number of steps for one episode
 MAX_STEPS_TEST = 100
@@ -211,7 +211,7 @@ def trajectory(action_set, real_pos_x, real_pos_y, pos_set_x, pos_set_y, vel_x, 
     #l: Half of the length of the diagonal of the square
     #p: Time peroide
     l = 100
-    p = 16
+    p = 8
     # a = l*np.sqrt(2)/(p/8)**2 #acceleration
     while True:
         t = time.time() % p  # Ensure that the trajectory repeats every p seconds
@@ -490,7 +490,7 @@ class TD3:
 
     def load(self):  # load trained weights
         # path = os.path.join('model', '_'.join([ALG_NAME, ENV_ID, 'TRA']))
-        path = os.path.join('model', 'TD3_BOP_TRA/50_20_3_v2_t16')
+        path = os.path.join('model', 'TD3_BOP_TRA/50_20_3_v2_t8')
         # path = os.path.join('model', '50_10_3_70_90')
         extend_path = lambda s: os.path.join(path, s)
         tl.files.load_and_assign_npz(extend_path('model_q_net1.npz'), self.q_net1)

@@ -123,7 +123,7 @@ class Ball_On_Plate_Robot_Env(gym.Env):
         # ************calculate the rewards************
         pos_normal = np.abs(pos_diff_x)+np.abs(pos_diff_y)
         costs_pos = 50*pos_normal
-        costs_vel = 10*(np.abs(vel_diff_x)+np.abs(vel_diff_y))
+        costs_vel = 20*(np.abs(vel_diff_x)+np.abs(vel_diff_y))
         costs_action = 3*(np.abs(angle[0])+np.abs(angle[1]))
         # costs_pos = 1*pos_normal
         # costs_vel = 1*(np.abs(vel_diff_x)+np.abs(vel_diff_y))
