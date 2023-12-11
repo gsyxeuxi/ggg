@@ -97,9 +97,9 @@ def PIDPlate(angle_1, angle_2, pos_set_x, pos_set_y):
 
 def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y):
     inver_matrix = coordinate_transform()
-    pos_set_trans = np.round(np.dot(inver_matrix, np.array(([pos_set_x.value],[pos_set_y.value],[1]))))
-    pos_set_trans_x = int(pos_set_trans[0][0]) - 1
-    pos_set_trans_y = int(pos_set_trans[1][0])
+    # pos_set_trans = np.round(np.dot(inver_matrix, np.array(([pos_set_x.value],[pos_set_y.value],[1]))))
+    # pos_set_trans_x = int(pos_set_trans[0][0]) - 1
+    # pos_set_trans_y = int(pos_set_trans[1][0])
     angle = [0.0, 0.0]
     pos_diff = [0.0, 0.0]
     pos_diff_sum = [0.0, 0.0]
@@ -126,6 +126,9 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y):
         grabResult = cam.RetrieveResult(5000, py.TimeoutHandling_ThrowException)
         # print(str('Number of skipped images:'), grabResult.GetNumberOfSkippedImages())
         if grabResult.GrabSucceeded():
+            pos_set_trans = np.round(np.dot(inver_matrix, np.array(([pos_set_x.value],[pos_set_y.value],[1]))))
+            pos_set_trans_x = int(pos_set_trans[0][0]) - 1
+            pos_set_trans_y = int(pos_set_trans[1][0])
             img = grabResult.Array
             img = cv.GaussianBlur(img,(3,3),0)
             dectect_back = detect_circles_cpu(img, cv.HOUGH_GRADIENT, dp=1, min_dist=50, param1=100, param2=36, min_Radius=26, max_Radius=32)
@@ -138,7 +141,7 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y):
             real_pos_y = real_pos[1][0]
             pos_diff[0] = pos_set_trans_x - real_pos_x
             pos_diff[1] = pos_set_trans_y - real_pos_y
-            print(real_pos_x, real_pos_y)
+            # print(real_pos_x, real_pos_y)
             for i in range(2):
                 pos_diff_sum[i] += pos_diff[i]
                 if pos_diff_sum[i] > 1500:
@@ -151,10 +154,10 @@ def PIDBall(angle_1, angle_2, pos_set_x, pos_set_y):
                     angle[i] = 6
                 if angle[i] < -6:
                     angle[i] = -6
-                print('angle', str(i+1), ' = ', angle[i], '°', sep="")
+                # print('angle', str(i+1), ' = ', angle[i], '°', sep="")
                 pos_diff_last[i] = pos_diff[i]
-            for i in range(2):
-                print("\33[2A")
+            # for i in range(2):
+            #     print("\33[2A")
 
             # print(angle[0])
             angle_1.value = angle[0]
@@ -185,6 +188,11 @@ def main():
     plate_process = Process(target=PIDPlate, args=(angle_1, angle_2, pos_set_x, pos_set_y,))
     ball_process.start()
     plate_process.start()
+    for i in range(10):
+        print("Pos x =")
+        pos_set_x.value = float(input())
+        print("Pos y =")
+        pos_set_y.value = float(input())
     ball_process.join()
     plate_process.join()
 
